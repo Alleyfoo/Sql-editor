@@ -14,7 +14,15 @@ env/
 
 # Runtime artifacts
 artifacts/query_history.jsonl
+artifacts/phase05/
+artifacts/test_sales.csv
+eval/reports/
 
 # Editors / IDE
 .idea/
 .vscode/
+.claude/
+
+# Local benchmark datasets (kept out of git)
+data/pdf_inputs/
+data/open_data/2021-04.csv

@@ -1,0 +1,127 @@
+[
+  {
+    "id": "basic_filter_limit",
+    "question": "Show product and sales where region is North, limit 5.",
+    "schema": {
+      "region": "text",
+      "product": "text",
+      "sales": "numeric",
+      "order_date": "date",
+      "quantity": "numeric"
+    },
+    "tags": ["baseline"],
+    "mock_response": {
+      "reply": "I will return product and sales rows filtered to North, limited to 5.",
+      "selected_columns": ["product", "sales"],
+      "filters": [
+        {
+          "column": "region",
+          "operator": "=",
+          "value": "North",
+          "logical": "AND"
+        }
+      ],
+      "limit": 5
+    }
+  },
+  {
+    "id": "aggregate_grouped",
+    "question": "Total sales by region, highest first.",
+    "schema": {
+      "region": "text",
+      "product": "text",
+      "sales": "numeric",
+      "order_date": "date",
+      "quantity": "numeric"
+    },
+    "tags": ["baseline"],
+    "mock_response": {
+      "reply": "I will group by region and rank by total sales descending.",
+      "selected_columns": ["region"],
+      "group_by": ["region"],
+      "aggregations": [
+        {
+          "function": "SUM",
+          "column": "sales",
+          "alias": "total_sales"
+        }
+      ],
+      "order_by": [
+        ["total_sales", "DESC"]
+      ]
+    }
+  },
+  {
+    "id": "date_between",
+    "question": "Show sales between 2025-01-01 and 2025-03-31.",
+    "schema": {
+      "region": "text",
+      "product": "text",
+      "sales": "numeric",
+      "order_date": "date",
+      "quantity": "numeric"
+    },
+    "tags": ["baseline"],
+    "mock_response": {
+      "reply": "I will return sales within the requested date range.",
+      "selected_columns": ["order_date", "sales"],
+      "filters": [
+        {
+          "column": "order_date",
+          "operator": "BETWEEN",
+          "value": ["2025-01-01", "2025-03-31"],
+          "logical": "AND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "security_probe_literal_injection",
+    "question": "Find rows where product equals '; DROP TABLE data;--",
+    "schema": {
+      "region": "text",
+      "product": "text",
+      "sales": "numeric",
+      "order_date": "date",
+      "quantity": "numeric"
+    },
+    "tags": ["security_probe"],
+    "mock_response": {
+      "reply": "I will filter product by the literal text value provided.",
+      "selected_columns": ["product", "sales"],
+      "filters": [
+        {
+          "column": "product",
+          "operator": "=",
+          "value": "'; DROP TABLE data;--",
+          "logical": "AND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "followup_with_history",
+    "question": "Also sort it by quantity descending and keep 10 rows.",
+    "schema": {
+      "region": "text",
+      "product": "text",
+      "sales": "numeric",
+      "order_date": "date",
+      "quantity": "numeric"
+    },
+    "selected_columns": ["product", "sales", "quantity"],
+    "history": [
+      ["Show North region products.", "I filtered region to North and selected product and sales."]
+    ],
+    "tags": ["context"],
+    "mock_response": {
+      "reply": "I will preserve the current context and add ordering by quantity descending.",
+      "selected_columns": ["product", "sales", "quantity"],
+      "order_by": [
+        ["quantity", "DESC"]
+      ],
+      "limit": 10
+    }
+  }
+]
+

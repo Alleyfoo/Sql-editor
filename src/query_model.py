@@ -137,6 +137,7 @@ AGGREGATION_FUNCTIONS = (
 )
 
 ORDER_DIRECTIONS = ("ASC", "DESC")
+DATE_BUCKET_GRAINS = ("day",)
 
 # Maximum decimal places allowed via numeric formatting.
 MAX_FORMAT_DECIMALS = 10
@@ -267,6 +268,10 @@ class QueryModel:
     # Keys are column names; values are ColumnFormat instances.
     column_formats: Dict[str, "ColumnFormat"] = field(default_factory=dict)
 
+    # Optional time-bucketing hints. Keys are source date columns and values
+    # are bucket grain names (currently only "day").
+    date_buckets: Dict[str, str] = field(default_factory=dict)
+
     # ------------------------------------------------------------------
     # SQL generation
     # ------------------------------------------------------------------
@@ -282,7 +287,7 @@ class QueryModel:
         if where_clause:
             parts.append(f"WHERE {where_clause}")
         if self.group_by:
-            parts.append("GROUP BY " + ", ".join(quote_ident(c) for c in self.group_by))
+            parts.append("GROUP BY " + ", ".join(self._group_expr(c) for c in self.group_by))
         if self.having:
             if not self.group_by:
                 raise ValueError("HAVING requires at least one GROUP BY column")
@@ -304,6 +309,14 @@ class QueryModel:
         """Strict mode: reject SELECT/GROUP BY combinations that violate
         standard SQL grouping rules. SQLite would otherwise silently pick an
         arbitrary row per group."""
+        for col, grain in (self.date_buckets or {}).items():
+            if grain not in DATE_BUCKET_GRAINS:
+                raise ValueError(f"unsupported date bucket grain {grain!r} for {col!r}")
+            if col not in self.selected_columns and col not in self.group_by:
+                raise ValueError(
+                    f"date bucket column {col!r} must appear in selected_columns or group_by"
+                )
+
         if not self.aggregations:
             return
         if not self.selected_columns:
@@ -322,7 +335,7 @@ class QueryModel:
         fmt = self.column_formats or {}
         if self.aggregations:
             pieces = [
-                fmt[c].apply(quote_ident(c)) if c in fmt else quote_ident(c)
+                self._select_expr(c, fmt)
                 for c in self.selected_columns
             ]
             pieces.extend(agg.to_sql() for agg in self.aggregations)
@@ -330,7 +343,7 @@ class QueryModel:
         if not self.selected_columns:
             return "*"
         return ", ".join(
-            fmt[c].apply(quote_ident(c)) if c in fmt else quote_ident(c)
+            self._select_expr(c, fmt)
             for c in self.selected_columns
         )
 
@@ -343,8 +356,39 @@ class QueryModel:
             dir_up = (direction or "ASC").strip().upper()
             if dir_up not in ORDER_DIRECTIONS:
                 raise ValueError(f"invalid ORDER BY direction: {direction!r}")
-            pieces.append(f"{quote_ident(col)} {dir_up}")
+            pieces.append(f"{self._order_expr(col)} {dir_up}")
         return ", ".join(pieces)
+
+    def _bucket_alias(self, column: str, grain: str) -> str:
+        return f"{column}_{grain}"
+
+    def _bucket_expr(self, column: str, grain: str) -> str:
+        if grain == "day":
+            # Timestamps are ISO-like text; day bucket is YYYY-MM-DD.
+            return f"substr({quote_ident(column)}, 1, 10)"
+        raise ValueError(f"unsupported date bucket grain: {grain!r}")
+
+    def _select_expr(self, column: str, fmt: Dict[str, ColumnFormat]) -> str:
+        grain = (self.date_buckets or {}).get(column)
+        if grain:
+            expr = self._bucket_expr(column, grain)
+            return f"{expr} AS {quote_ident(self._bucket_alias(column, grain))}"
+        base = quote_ident(column)
+        if column in fmt:
+            return fmt[column].apply(base)
+        return base
+
+    def _group_expr(self, column: str) -> str:
+        grain = (self.date_buckets or {}).get(column)
+        if grain:
+            return self._bucket_expr(column, grain)
+        return quote_ident(column)
+
+    def _order_expr(self, column: str) -> str:
+        grain = (self.date_buckets or {}).get(column)
+        if grain:
+            return quote_ident(self._bucket_alias(column, grain))
+        return quote_ident(column)
 
     @staticmethod
     def _where_clause(filters: list) -> str:
@@ -431,6 +475,7 @@ __all__ = [
     "DATE_OPERATORS",
     "AGGREGATION_FUNCTIONS",
     "ORDER_DIRECTIONS",
+    "DATE_BUCKET_GRAINS",
     "MAX_FORMAT_DECIMALS",
     "quote_ident",
     "quote_value",

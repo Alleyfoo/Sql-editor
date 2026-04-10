@@ -7,13 +7,16 @@ directly.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 import pytest
 
+import src.llm.natural_language as nl_mod
 from src.llm.natural_language import (
     LLMError,
     OllamaClient,
+    RouteToPythonError,
     nl_to_query_model,
     parse_query_plan,
 )
@@ -150,6 +153,54 @@ def test_parse_full_grouped_query() -> None:
     assert sql.upper().startswith("SELECT")
 
 
+def test_parse_having_count_star_expression_maps_to_alias() -> None:
+    model = parse_query_plan(
+        {
+            "group_by": ["country"],
+            "aggregations": [{"function": "COUNT", "column": "*"}],
+            "having": [{"column": "COUNT(*)", "operator": ">", "value": 10}],
+        },
+        SCHEMA,
+    )
+    assert model.having[0].column == "count_all"
+
+
+def test_parse_having_count_star_expression_maps_to_alias_lowercase() -> None:
+    model = parse_query_plan(
+        {
+            "group_by": ["country"],
+            "aggregations": [{"function": "COUNT", "column": "*"}],
+            "having": [{"column": "count(*)", "operator": ">", "value": 10}],
+        },
+        SCHEMA,
+    )
+    assert model.having[0].column == "count_all"
+
+
+def test_parse_having_count_star_expression_with_spaces_maps_to_alias() -> None:
+    model = parse_query_plan(
+        {
+            "group_by": ["country"],
+            "aggregations": [{"function": "COUNT", "column": "*"}],
+            "having": [{"column": " COUNT ( * ) ", "operator": ">", "value": 10}],
+        },
+        SCHEMA,
+    )
+    assert model.having[0].column == "count_all"
+
+
+def test_parse_having_count_star_auto_adds_count_aggregation() -> None:
+    model = parse_query_plan(
+        {
+            "group_by": ["country"],
+            "having": [{"column": "COUNT(*)", "operator": ">", "value": 10}],
+        },
+        SCHEMA,
+    )
+    assert any(a.function == "COUNT" and a.column == "*" for a in model.aggregations)
+    assert model.having[0].column == "count_all"
+
+
 def test_parse_order_by_uses_agg_alias() -> None:
     model = parse_query_plan(
         {
@@ -167,6 +218,35 @@ def test_parse_limit_coercion() -> None:
     assert parse_query_plan({"limit": None}, SCHEMA).limit is None
     assert parse_query_plan({"limit": 0}, SCHEMA).limit is None
     assert parse_query_plan({"limit": 10}, SCHEMA).limit == 10
+
+
+def test_parse_inline_aggregation_in_selected_columns() -> None:
+    model = parse_query_plan(
+        {"selected_columns": ["COUNT(id) AS event_count"]},
+        SCHEMA,
+    )
+    assert model.selected_columns == []
+    assert len(model.aggregations) == 1
+    agg = model.aggregations[0]
+    assert agg.function == "COUNT"
+    assert agg.column == "id"
+    assert agg.alias == "event_count"
+
+
+def test_parse_date_buckets_day() -> None:
+    model = parse_query_plan(
+        {
+            "selected_columns": ["created_at"],
+            "group_by": ["created_at"],
+            "aggregations": [{"function": "COUNT", "column": "id", "alias": "n"}],
+            "date_buckets": {"created_at": "day"},
+            "order_by": [["created_at", "ASC"]],
+        },
+        SCHEMA,
+    )
+    sql = model.to_sql()
+    assert 'substr("created_at", 1, 10) AS "created_at_day"' in sql
+    assert 'GROUP BY substr("created_at", 1, 10)' in sql
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +375,18 @@ class _StubClient:
         return self._response
 
 
+class _SequencedStubClient:
+    def __init__(self, responses: list[Dict[str, Any]]) -> None:
+        self._responses = list(responses)
+        self.calls: list = []
+
+    def generate_json(self, system: str, user: str) -> Dict[str, Any]:
+        self.calls.append((system, user))
+        if not self._responses:
+            return {}
+        return self._responses.pop(0)
+
+
 def test_nl_to_query_model_with_stub_client() -> None:
     stub = _StubClient(
         {
@@ -326,6 +418,102 @@ def test_nl_to_query_model_rejects_empty_nl() -> None:
 def test_nl_to_query_model_rejects_empty_schema() -> None:
     with pytest.raises(LLMError):
         nl_to_query_model("any", {}, client=_StubClient({}))  # type: ignore[arg-type]
+
+
+def test_nl_to_query_model_routes_percentile_to_python_path() -> None:
+    stub = _StubClient({"selected_columns": ["name"]})
+    with pytest.raises(RouteToPythonError) as exc:
+        nl_to_query_model(
+            "What is the 90th percentile of amount?",
+            SCHEMA,
+            client=stub,  # type: ignore[arg-type]
+        )
+    assert "python analytics path" in str(exc.value).lower()
+    assert len(stub.calls) == 0
+
+
+def test_nl_to_query_model_routes_percentage_to_python_path() -> None:
+    stub = _StubClient({"selected_columns": ["name"]})
+    with pytest.raises(RouteToPythonError):
+        nl_to_query_model(
+            "For each station, what percentage of trips return to the same station?",
+            SCHEMA,
+            client=stub,  # type: ignore[arg-type]
+        )
+    assert len(stub.calls) == 0
+
+
+def test_nl_to_query_model_routes_same_station_compare_to_python_path() -> None:
+    stub = _StubClient({"selected_columns": ["name"]})
+    with pytest.raises(RouteToPythonError):
+        nl_to_query_model(
+            "How many rows have departure station id equals return station id?",
+            SCHEMA,
+            client=stub,  # type: ignore[arg-type]
+        )
+    assert len(stub.calls) == 0
+
+
+def test_nl_to_query_model_normalizes_last_7_days_inclusive_window(monkeypatch) -> None:
+    class _FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return datetime(2026, 4, 10, 12, 0, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(nl_mod, "datetime", _FixedDateTime)
+    stub = _StubClient(
+        {
+            "selected_columns": ["created_at"],
+            "group_by": ["created_at"],
+            "aggregations": [{"function": "COUNT", "column": "id", "alias": "n"}],
+            "filters": [{"column": "created_at", "operator": ">=", "value": "date_7_days_ago"}],
+            "date_buckets": {"created_at": "day"},
+            "order_by": [["created_at", "ASC"]],
+        }
+    )
+    model = nl_to_query_model(
+        "How many rows per day for the last 7 days?",
+        SCHEMA,
+        client=stub,  # type: ignore[arg-type]
+    )
+    lower = next((f for f in model.filters if f.column == "created_at" and f.operator == ">="), None)
+    upper = next((f for f in model.filters if f.column == "created_at" and f.operator == "<"), None)
+    assert lower is not None
+    assert upper is not None
+    assert lower.value == "2026-04-04"
+    assert upper.value == "2026-04-11"
+
+
+def test_nl_to_query_model_drops_non_grouped_selected_columns_when_aggregating() -> None:
+    stub = _StubClient(
+        {
+            "selected_columns": ["country", "amount"],
+            "group_by": ["country"],
+            "aggregations": [{"function": "AVG", "column": "amount", "alias": "avg_amount"}],
+            "reply": "Average amount by country.",
+        }
+    )
+    model = nl_to_query_model(
+        "Average amount by country",
+        SCHEMA,
+        client=stub,  # type: ignore[arg-type]
+    )
+    assert model.selected_columns == ["country"]
+    sql = model.to_sql()
+    assert "GROUP BY" in sql
+
+
+def test_nl_to_query_model_retries_schema_error_once() -> None:
+    client = _SequencedStubClient(
+        [
+            {"selected_columns": ["ghost_col"]},
+            {"selected_columns": ["name"], "limit": 3},
+        ]
+    )
+    model = nl_to_query_model("show names", SCHEMA, client=client)  # type: ignore[arg-type]
+    assert model.selected_columns == ["name"]
+    assert model.limit == 3
+    assert len(client.calls) == 2
 
 
 def test_ollama_client_constructs_without_network() -> None:

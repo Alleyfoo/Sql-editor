@@ -45,6 +45,15 @@ your request to a local Ollama model and populates the visual composer
 with the result. The SQL preview updates so you can inspect it; clicking
 **Run** then executes the query as normal. The NL flow never auto-runs.
 
+Use **Ask + Analyze** for the agent flow:
+
+1. NL -> JSON plan -> SQL
+2. Execute SQL
+3. Return a concise analysis block (summary, key insights, follow-up questions)
+
+This keeps SQL visible in the chat and preview so query-learning remains
+first-class.
+
 Configure the Ollama endpoint in `config.yaml` or via environment
 variables (env vars win):
 
@@ -96,6 +105,120 @@ pytest tests/ -v
 The suite covers query-model SQL generation (every operator, AND/OR logic,
 LIMIT, SQL-injection attempts in filter values), the executor blocklist, and
 ingestion including a live check that the returned connection rejects writes.
+
+### Capability Spike Eval (Model Feasibility)
+
+Before building larger agent orchestration, run a capability spike to measure
+NL->JSON plan behavior against the current trust boundary:
+
+```bash
+python eval/capability_eval.py --provider mock
+python eval/capability_eval.py --provider ollama --model gemma4
+python eval/capability_eval.py --provider ollama --model gemma4 --cases eval/golden/capability/security_cases.json
+```
+
+The report includes JSON object rate, valid plan rate, hallucination rate,
+latency, and token usage. Starter cases live in
+`eval/golden/capability/starter_cases.json` and adversarial/security cases
+live in `eval/golden/capability/security_cases.json`.
+
+### Dirty Excel Header Capability Spike
+
+To evaluate whether the model can detect displaced headers in messy Excel/CSV
+exports:
+
+```bash
+python eval/cleaning_capability_eval.py --provider mock
+python eval/cleaning_capability_eval.py --provider ollama --model gemma4
+```
+
+Cases and fixtures:
+
+- `eval/golden/cleaning/dirty_excel_cases.json`
+- `eval/golden/cleaning/fixtures/*.xlsx`
+- `eval/golden/cleaning/generate_fixtures.py` (regenerates all fixtures)
+
+The dirty-cleaning set now includes 19 harder displaced-header scenarios
+(long preambles, blank separators, column offsets, sparse header cells,
+symbols/units, multi-table previews, and mixed-language header text).
+
+### Open-Data SQL vs Python-Fit Benchmark
+
+To benchmark where NL->SQL is reliable versus where requests drift into
+Python-style analytics (percentiles, rolling windows), run:
+
+```bash
+python eval/open_data_sql_vs_python_eval.py --provider ollama --model gemma4
+```
+
+This benchmark uses two open datasets:
+
+- `data/open_data/usgs_all_month.csv`
+- `data/open_data/seattle_weather.csv`
+
+and evaluates two tracks:
+
+- `sql_fit`: should pass with accurate SQL outputs.
+- `python_fit`: intentionally harder analytics that often need Python/pandas.
+
+The report is written to `eval/reports/open_data_sql_vs_python_*.json`.
+
+NL routing is now enabled for Python-fit intents. Prompts containing
+`percentile`, `quantile`, `rolling/moving average`, `stdev/standard deviation`,
+or `outlier/anomaly` are routed away from SQL generation to a Python
+analytics path.
+
+To add your own dataset (for example HSY open data):
+
+1. Place the CSV under `data/open_data/`.
+2. Add cases to `eval/golden/open_data/sql_vs_python_cases.json`.
+3. Use validator `non_empty_result` or `single_numeric_scalar` for quick
+   smoke checks, or add a stricter validator in
+   `eval/open_data_sql_vs_python_eval.py`.
+
+HSY April 2021 eval pack is included at:
+
+- `eval/golden/open_data/hsy_2021_04_eval_pack.json`
+
+Run it with:
+
+```bash
+python eval/open_data_sql_vs_python_eval.py --provider ollama --model gemma4 --cases eval/golden/open_data/hsy_2021_04_eval_pack.json
+```
+
+### Phase 0.5 Vertical Slice (PDF -> Query -> Network)
+
+Place real PDFs in:
+
+- `data/pdf_inputs/`
+
+Run ingest on one PDF:
+
+```bash
+python phase05_slice.py ingest --pdf data/pdf_inputs/easy.pdf --run-id phase05-easy
+```
+
+Run a query against the produced `clean.csv`:
+
+```bash
+python phase05_slice.py query --run-id phase05-easy --ask "total revenue by region"
+```
+
+Start a local network endpoint:
+
+```bash
+python phase05_slice.py serve --host 127.0.0.1 --port 8787
+```
+
+Then call:
+
+```bash
+curl -X POST http://127.0.0.1:8787/query -H "Content-Type: application/json" -d "{\"run_id\":\"phase05-easy\",\"ask\":\"total revenue by region\"}"
+```
+
+Artifacts are written to:
+
+- `artifacts/phase05/<run-id>/`
 
 ## Artifacts
 

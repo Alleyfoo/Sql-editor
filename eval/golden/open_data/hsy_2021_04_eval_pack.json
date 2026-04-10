@@ -1,0 +1,58 @@
+[
+  {
+    "id": "hsy_top5_busiest_departure_stations",
+    "track": "sql_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "What are the 5 busiest departure stations in the dataset? Return departure station id, departure station name, and trip count. Sort by trip count descending, then by departure station id ascending.",
+    "validator": "hsy_top5_busiest_departure"
+  },
+  {
+    "id": "hsy_top10_most_common_routes",
+    "track": "sql_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "What are the 10 most common station-to-station routes? Return departure station id, departure station name, return station id, return station name, and trip count. Sort by trip count descending, then by departure station id ascending, then by return station id ascending.",
+    "validator": "hsy_top10_common_routes"
+  },
+  {
+    "id": "hsy_trips_per_departure_hour",
+    "track": "python_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "For each departure hour of day, how many trips started? Return hour_of_day and trip count. Sort by hour_of_day ascending.",
+    "validator": "non_empty_result"
+  },
+  {
+    "id": "hsy_same_station_round_trips_count",
+    "track": "python_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "How many trips start and end at the same station? Return the count of trips where departure station id equals return station id.",
+    "validator": "single_numeric_scalar"
+  },
+  {
+    "id": "hsy_top10_departure_avg_distance_min100",
+    "track": "sql_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "Which 10 departure stations have the longest average trip distance? Return departure station id, departure station name, and average covered distance in meters. Only include stations with at least 100 trips. Sort by average distance descending, then by departure station id ascending.",
+    "validator": "hsy_top10_dep_avg_distance_min100"
+  },
+  {
+    "id": "hsy_stations_more_departures_than_returns",
+    "track": "python_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "Which departure stations have more departures than returns? Return station id, station name, departure trip count, return trip count, and the difference between them. Only include stations that appear as both departure and return stations. Sort by difference descending, then by station id ascending. Return the top 10 rows.",
+    "validator": "non_empty_result"
+  },
+  {
+    "id": "hsy_route_highest_avg_distance_min50",
+    "track": "sql_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "Which route has the highest average covered distance among routes with at least 50 trips? Return departure station id, departure station name, return station id, return station name, and average covered distance in meters.",
+    "validator": "hsy_route_highest_avg_distance_min50"
+  },
+  {
+    "id": "hsy_top10_same_station_percentage_min100_departures",
+    "track": "python_fit",
+    "dataset": "data/open_data/2021-04.csv",
+    "question": "For each departure station, find the percentage of trips that return to the same station, then return the top 10 stations by that percentage among stations with at least 100 departures.",
+    "validator": "non_empty_result"
+  }
+]

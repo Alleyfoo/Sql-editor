@@ -280,3 +280,19 @@ def test_full_phase2_clause_ordering():
     )
     # Full validator still accepts it.
     _assert_select_only(sql)
+
+
+def test_date_bucket_day_with_aggregation():
+    m = QueryModel(
+        selected_columns=["time"],
+        group_by=["time"],
+        aggregations=[Aggregation(column="id", function="COUNT", alias="n")],
+        order_by=[("time", "ASC")],
+        date_buckets={"time": "day"},
+    )
+    assert m.to_sql() == (
+        'SELECT substr("time", 1, 10) AS "time_day", COUNT("id") AS "n" '
+        'FROM "data" '
+        'GROUP BY substr("time", 1, 10) '
+        'ORDER BY "time_day" ASC'
+    )

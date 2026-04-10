@@ -1,0 +1,4 @@
+Inventory Snapshot,,,
+warehouse-1,,,
+Item Code,Warehouse,On Hand,Reorder Point
+ITM-1,W1,45,10

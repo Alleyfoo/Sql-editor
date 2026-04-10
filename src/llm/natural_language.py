@@ -26,7 +26,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -35,6 +37,7 @@ from ..query_model import (
     AGGREGATION_FUNCTIONS,
     Aggregation,
     ColumnFormat,
+    DATE_BUCKET_GRAINS,
     Filter,
     MAX_FORMAT_DECIMALS,
     OPERATORS_BY_TYPE,
@@ -55,6 +58,17 @@ class LLMError(RuntimeError):
     the problem is transport (Ollama down), schema (model hallucinated a
     column), or validation (bad operator, etc.).
     """
+
+
+class RouteToPythonError(LLMError):
+    """Raised when NL intent should be handled by Python analytics."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(
+            "This request is better handled by a Python analytics path "
+            f"({reason}) instead of SQL generation."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +124,13 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
         history_depth = 6
     history_depth = max(0, history_depth)
 
-    return LLMConfig(host=host, model=model, timeout=timeout, provider=provider, history_depth=history_depth)
+    return LLMConfig(
+        host=host,
+        model=model,
+        timeout=timeout,
+        provider=provider,
+        history_depth=history_depth,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +241,55 @@ SYSTEM_PROMPT = (
     "confirming what you understood and what the query will do. "
     "If the user asks for numeric formatting (e.g. 'round to 2 decimals', "
     "'show prices with 2 decimal places'), include a \"column_formats\" "
-    "object mapping each affected column name to {\"round\": N} where N is "
-    "the number of decimal places. Only apply formatting to numeric columns."
+    'object mapping each affected column name to {"round": N} where N is '
+    "the number of decimal places. Only apply formatting to numeric columns. "
+    "If the user asks for per-day/group-by-day output, include "
+    '"date_buckets": {"<date_column>": "day"} and keep selected/group columns '
+    "as real schema columns (no SQL expressions in selected_columns)."
 )
+
+
+_PYTHON_ROUTE_PATTERNS: List[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bpercentile(s)?\b", re.IGNORECASE), "percentile"),
+    (re.compile(r"\bquantile(s)?\b", re.IGNORECASE), "quantile"),
+    (
+        re.compile(r"\b(rolling|moving)\s+(average|avg|window)\b", re.IGNORECASE),
+        "rolling window",
+    ),
+    (
+        re.compile(r"\b(stdev|stddev|std dev|standard deviation)\b", re.IGNORECASE),
+        "standard deviation",
+    ),
+    (re.compile(r"\boutlier(s)?\b", re.IGNORECASE), "outlier detection"),
+    (re.compile(r"\banomal(y|ies)\b", re.IGNORECASE), "anomaly detection"),
+    (re.compile(r"\b(hour of day|departure hour|per hour)\b", re.IGNORECASE), "hour extraction"),
+    (
+        re.compile(
+            r"\b(same station|start and end at the same station|departure station id equals return station id)\b",
+            re.IGNORECASE,
+        ),
+        "column-to-column comparison",
+    ),
+    (
+        re.compile(
+            r"\b(more departures than returns|receive more trips than they send)\b",
+            re.IGNORECASE,
+        ),
+        "cross-role station balance",
+    ),
+    (re.compile(r"\b(percentage|percent|ratio|share)\b", re.IGNORECASE), "percentage/rate"),
+]
+
+
+def detect_python_route_reason(nl: str) -> Optional[str]:
+    """Return the matched reason when a prompt should route to Python."""
+    text = (nl or "").strip()
+    if not text:
+        return None
+    for pattern, reason in _PYTHON_ROUTE_PATTERNS:
+        if pattern.search(text):
+            return reason
+    return None
 
 
 def _format_schema(schema: Dict[str, str]) -> str:
@@ -280,7 +346,8 @@ def build_user_prompt(
         '  "having": [{"column": "total", "operator": ">", "value": 100}, ...],\n'
         '  "order_by": [["col_or_alias", "ASC"], ...],\n'
         '  "limit": 10,\n'
-        '  "column_formats": {"price": {"round": 2}}\n'
+        '  "column_formats": {"price": {"round": 2}},\n'
+        '  "date_buckets": {"created_at": "day"}\n'
         "}\n"
         "\n"
         f"Allowed operators: {ops}\n"
@@ -289,8 +356,9 @@ def build_user_prompt(
         'Allowed logical joiners: ["AND", "OR"]\n'
         "For BETWEEN, value must be a 2-element array [low, high].\n"
         "For IS NULL / IS NOT NULL, omit value.\n"
+        f"Allowed date_buckets grains: {list(DATE_BUCKET_GRAINS)}.\n"
         f"column_formats keys must be numeric columns from the schema above; "
-        f"\"round\" must be an integer between 0 and {MAX_FORMAT_DECIMALS}.\n"
+        f'"round" must be an integer between 0 and {MAX_FORMAT_DECIMALS}.\n'
         "When aggregations are present, every non-aggregated column in "
         "selected_columns MUST appear in group_by. "
         "NEVER put aggregation aliases (e.g. 'total_sales') into "
@@ -309,6 +377,14 @@ def build_user_prompt(
 _VALID_LOGICAL = {"AND", "OR"}
 _NULLARY_OPS = {"IS NULL", "IS NOT NULL"}
 _RANGE_OPS = {"BETWEEN"}
+_INLINE_AGG_RE = re.compile(
+    r"^(COUNT|SUM|AVG|MIN|MAX)\s*\(\s*(\*|[A-Za-z_][A-Za-z0-9_]*)\s*\)\s*(?:AS\s+([A-Za-z_][A-Za-z0-9_]*))?$",
+    re.IGNORECASE,
+)
+_INLINE_COUNT_DISTINCT_RE = re.compile(
+    r"^COUNT\s+DISTINCT\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*(?:AS\s+([A-Za-z_][A-Za-z0-9_]*))?$",
+    re.IGNORECASE,
+)
 
 
 def _require_str(value: Any, field: str) -> str:
@@ -318,10 +394,14 @@ def _require_str(value: Any, field: str) -> str:
 
 
 def _require_column(value: Any, schema: Dict[str, str], field: str) -> str:
-    col = _require_str(value, field)
-    if col not in schema:
-        raise LLMError(f"{field}: column {col!r} is not in the dataset schema")
-    return col
+    col = _require_str(value, field).strip()
+    if col in schema:
+        return col
+    lower = col.lower()
+    for key in schema:
+        if key.lower() == lower:
+            return key
+    raise LLMError(f"{field}: column {col!r} is not in the dataset schema")
 
 
 def _parse_filter(
@@ -481,9 +561,7 @@ def _parse_limit(raw: Any) -> Optional[int]:
     return None if n == 0 else n
 
 
-def _parse_column_formats(
-    raw: Any, schema: Dict[str, str]
-) -> Dict[str, ColumnFormat]:
+def _parse_column_formats(raw: Any, schema: Dict[str, str]) -> Dict[str, ColumnFormat]:
     """Parse and validate the optional ``column_formats`` dict from the LLM.
 
     Accepted shape::
@@ -498,9 +576,7 @@ def _parse_column_formats(
     if raw is None:
         return {}
     if not isinstance(raw, dict):
-        raise LLMError(
-            f"column_formats must be an object (got {type(raw).__name__})"
-        )
+        raise LLMError(f"column_formats must be an object (got {type(raw).__name__})")
     result: Dict[str, ColumnFormat] = {}
     for col, spec in raw.items():
         if col not in schema:
@@ -535,6 +611,58 @@ def _parse_column_formats(
     return result
 
 
+def _parse_inline_aggregation(
+    raw: str,
+    schema: Dict[str, str],
+) -> Optional[Aggregation]:
+    text = raw.strip()
+    if not text:
+        return None
+    m = _INLINE_AGG_RE.match(text)
+    if m:
+        func = m.group(1).upper()
+        col = m.group(2)
+        alias = m.group(3)
+        if col != "*" and col not in schema:
+            return None
+        if col == "*" and func != "COUNT":
+            return None
+        return Aggregation(column=col, function=func, alias=alias)
+
+    m2 = _INLINE_COUNT_DISTINCT_RE.match(text)
+    if m2:
+        col = m2.group(1)
+        alias = m2.group(2)
+        if col not in schema:
+            return None
+        return Aggregation(column=col, function="COUNT DISTINCT", alias=alias)
+    return None
+
+
+def _parse_date_buckets(raw: Any, schema: Dict[str, str]) -> Dict[str, str]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise LLMError(f"date_buckets must be an object (got {type(raw).__name__})")
+    out: Dict[str, str] = {}
+    for col, grain_raw in raw.items():
+        if col not in schema:
+            raise LLMError(f"date_buckets: column {col!r} is not in the dataset schema")
+        if schema[col] != "date":
+            raise LLMError(
+                f"date_buckets: column {col!r} is type {schema[col]!r}; only date columns are allowed"
+            )
+        if not isinstance(grain_raw, str) or not grain_raw.strip():
+            raise LLMError(f"date_buckets[{col!r}] must be a non-empty string")
+        grain = grain_raw.strip().lower()
+        if grain not in DATE_BUCKET_GRAINS:
+            raise LLMError(
+                f"date_buckets[{col!r}] grain {grain!r} must be one of {list(DATE_BUCKET_GRAINS)}"
+            )
+        out[col] = grain
+    return out
+
+
 def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     """Convert a raw JSON dict from the LLM into a validated ``QueryModel``.
 
@@ -562,6 +690,11 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         _parse_aggregation(entry, schema, index=i) for i, entry in enumerate(agg_raw)
     ]
     agg_names = {a.display_name for a in aggregations}
+    count_all_alias: Optional[str] = None
+    for agg in aggregations:
+        if agg.function.upper() == "COUNT" and agg.column == "*":
+            count_all_alias = agg.display_name
+            break
 
     # selected_columns — schema columns only; aggregation aliases are emitted
     # automatically and must NOT appear here.  We silently drop any entry that
@@ -573,6 +706,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     if not isinstance(sel_raw, list):
         raise LLMError("selected_columns must be an array")
     selected_columns: List[str] = []
+    agg_signature = {(a.function, a.column, a.alias or "") for a in aggregations}
     for i, col in enumerate(sel_raw):
         if not isinstance(col, str) or not col:
             raise LLMError(
@@ -580,6 +714,14 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
             )
         if col in agg_names:
             # Model hallucinated the alias into selected_columns — skip it.
+            continue
+        inline_agg = _parse_inline_aggregation(col, schema)
+        if inline_agg is not None:
+            sig = (inline_agg.function, inline_agg.column, inline_agg.alias or "")
+            if sig not in agg_signature:
+                aggregations.append(inline_agg)
+                agg_signature.add(sig)
+                agg_names.add(inline_agg.display_name)
             continue
         selected_columns.append(_require_column(col, schema, f"selected_columns[{i}]"))
 
@@ -610,15 +752,64 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         having_raw = []
     if not isinstance(having_raw, list):
         raise LLMError("having must be an array")
+    if not count_all_alias:
+        has_count_star_having = any(
+            isinstance(entry, dict)
+            and isinstance(entry.get("column"), str)
+            and re.match(r"^\s*count\s*\(\s*\*\s*\)\s*$", entry.get("column", ""), flags=re.IGNORECASE)
+            for entry in having_raw
+        )
+        if has_count_star_having:
+            auto_count = Aggregation(column="*", function="COUNT", alias="count_all")
+            aggregations.append(auto_count)
+            agg_names.add(auto_count.display_name)
+            count_all_alias = auto_count.display_name
+    if count_all_alias:
+        normalized_having: List[Any] = []
+        for entry in having_raw:
+            if isinstance(entry, dict):
+                col_raw = entry.get("column")
+                if isinstance(col_raw, str) and re.match(
+                    r"^\s*count\s*\(\s*\*\s*\)\s*$", col_raw, flags=re.IGNORECASE
+                ):
+                    patched = dict(entry)
+                    patched["column"] = count_all_alias
+                    normalized_having.append(patched)
+                    continue
+            normalized_having.append(entry)
+        having_raw = normalized_having
     if having_raw and not group_by:
         raise LLMError("having requires at least one group_by column")
     having_schema: Dict[str, str] = {c: schema.get(c, "text") for c in group_by}
+    having_expr_to_name: Dict[str, str] = {}
     for name in agg_names:
         having_schema[name] = "numeric"
+    for agg in aggregations:
+        func = agg.function.upper()
+        if func == "COUNT DISTINCT":
+            expr = f"COUNT(DISTINCT {agg.column})"
+        elif func == "COUNT" and agg.column == "*":
+            expr = "COUNT(*)"
+        else:
+            expr = f"{func}({agg.column})"
+        variants = {
+            expr,
+            expr.lower(),
+            expr.upper(),
+            expr.replace(" ", ""),
+            expr.lower().replace(" ", ""),
+            expr.upper().replace(" ", ""),
+        }
+        for variant in variants:
+            having_schema[variant] = "numeric"
+            having_expr_to_name[variant] = agg.display_name
     having: List[Filter] = [
         _parse_filter(entry, having_schema, scope=f"having[{i}]")
         for i, entry in enumerate(having_raw)
     ]
+    for h in having:
+        if h.column in having_expr_to_name:
+            h.column = having_expr_to_name[h.column]
 
     # order_by — accepts schema columns OR aggregation display names
     order_by = _parse_order_by(payload.get("order_by"), schema, agg_names)
@@ -628,6 +819,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
 
     # column_formats — optional per-column numeric formatting
     column_formats = _parse_column_formats(payload.get("column_formats"), schema)
+    date_buckets = _parse_date_buckets(payload.get("date_buckets"), schema)
 
     return QueryModel(
         table="data",
@@ -640,6 +832,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         limit=limit,
         reply=reply,
         column_formats=column_formats,
+        date_buckets=date_buckets,
     )
 
 
@@ -675,6 +868,9 @@ def nl_to_query_model(
         raise LLMError("natural-language request is empty")
     if not isinstance(schema, dict) or not schema:
         raise LLMError("schema is empty — open a CSV first")
+    route_reason = detect_python_route_reason(nl.strip())
+    if route_reason:
+        raise RouteToPythonError(route_reason)
 
     if client is None:
         cfg = config or load_llm_config({})
@@ -684,15 +880,153 @@ def nl_to_query_model(
         nl.strip(), schema, selected_columns=selected_columns, history=history
     )
     payload = client.generate_json(SYSTEM_PROMPT, user_prompt)
-    return parse_query_plan(payload, schema)
+    try:
+        model = parse_query_plan(payload, schema)
+    except LLMError as first_exc:
+        msg = str(first_exc).lower()
+        schema_error = "not in the dataset schema" in msg
+        if not schema_error:
+            raise
+        # One constrained retry: remind the model to use schema columns only.
+        fix_prompt = (
+            user_prompt
+            + "\n\nYour previous JSON was invalid because it referenced columns not in the schema."
+            + " Return corrected JSON using ONLY exact schema column names."
+        )
+        payload_retry = client.generate_json(SYSTEM_PROMPT, fix_prompt)
+        try:
+            model = parse_query_plan(payload_retry, schema)
+        except LLMError as retry_exc:
+            raise LLMError(
+                f"{first_exc}; retry failed: {retry_exc}. "
+                f"Available columns: {', '.join(schema.keys())}"
+            ) from retry_exc
+
+    # Post-parse repair for common analytics phrasing:
+    # "per day"/"by day" should bucket date columns by day, not full timestamp.
+    low_nl = nl.lower()
+    if (
+        ("per day" in low_nl or "by day" in low_nl or "each day" in low_nl)
+        and model.aggregations
+    ):
+        bucket_col: Optional[str] = None
+        for col in model.group_by:
+            if schema.get(col) == "date":
+                bucket_col = col
+                break
+        if bucket_col is None:
+            for col in model.selected_columns:
+                if schema.get(col) == "date":
+                    bucket_col = col
+                    break
+        if bucket_col is None and "time" in schema and schema.get("time") == "date":
+            bucket_col = "time"
+        if bucket_col is not None:
+            if bucket_col not in model.group_by:
+                model.group_by.insert(0, bucket_col)
+            if bucket_col not in model.selected_columns:
+                model.selected_columns.insert(0, bucket_col)
+            model.date_buckets[bucket_col] = "day"
+            if not model.order_by:
+                model.order_by = [(bucket_col, "ASC")]
+
+    if model.aggregations:
+        # If the model leaves raw measure columns in selected_columns while
+        # grouping, drop them to keep SQL structurally valid.
+        keep = set(model.group_by)
+        model.selected_columns = [c for c in model.selected_columns if c in keep]
+
+    # Replace common date placeholders with concrete ISO dates.
+    today = datetime.now(timezone.utc).date()
+    seven_days_ago = (today - timedelta(days=7)).isoformat()
+    seven_days_window_start = (today - timedelta(days=6)).isoformat()
+    today_iso = today.isoformat()
+    tomorrow_iso = (today + timedelta(days=1)).isoformat()
+    placeholder_map = {
+        "date_seven_days_ago": seven_days_ago,
+        "date_7_days_ago": seven_days_ago,
+        "current_date": today_iso,
+    }
+    has_current_upper_bound = any(
+        isinstance(f.column, str)
+        and schema.get(f.column) == "date"
+        and isinstance(f.value, str)
+        and str(f.value).lower() == "current_date"
+        for f in model.filters
+    )
+    for f in model.filters:
+        if not isinstance(f.column, str) or schema.get(f.column) != "date":
+            continue
+        if isinstance(f.value, str):
+            key = f.value.strip().lower()
+            if key in placeholder_map:
+                f.value = placeholder_map[key]
+                if key == "current_date":
+                    has_current_upper_bound = True
+
+    has_last_7_days_intent = "last 7 days" in low_nl or "past 7 days" in low_nl
+    if has_last_7_days_intent and any(schema.get(f.column) == "date" for f in model.filters):
+        # Normalize to an inclusive seven-day window [today-6, today].
+        date_col = next(
+            (f.column for f in model.filters if schema.get(f.column) == "date"),
+            None,
+        )
+        if date_col is not None:
+            lower_normalized = False
+            upper_normalized = False
+            for f in model.filters:
+                if f.column != date_col:
+                    continue
+                if f.operator in {">", ">="}:
+                    f.operator = ">="
+                    f.value = seven_days_window_start
+                    lower_normalized = True
+                elif f.operator in {"<", "<="}:
+                    f.operator = "<"
+                    f.value = tomorrow_iso
+                    upper_normalized = True
+            if not lower_normalized:
+                model.filters.append(
+                    Filter(
+                        column=date_col,
+                        operator=">=",
+                        value=seven_days_window_start,
+                        logical="AND",
+                    )
+                )
+            if not upper_normalized:
+                model.filters.append(
+                    Filter(column=date_col, operator="<", value=tomorrow_iso, logical="AND")
+                )
+            has_current_upper_bound = True
+
+    # Scalar count intent repair: for questions asking for one number, avoid
+    # unnecessary GROUP BY payload from model output.
+    scalar_count_intent = (
+        "one number" in low_nl
+        or (
+            "how many" in low_nl
+            and " per " not in low_nl
+            and " by " not in low_nl
+            and "top" not in low_nl
+        )
+    )
+    if scalar_count_intent and any(a.function.startswith("COUNT") for a in model.aggregations):
+        model.selected_columns = []
+        model.group_by = []
+        model.order_by = []
+
+    return model
 
 
 __all__ = [
     "LLMError",
+    "RouteToPythonError",
     "LLMConfig",
     "OllamaClient",
     "SYSTEM_PROMPT",
     "build_user_prompt",
+    "detect_python_route_reason",
     "load_llm_config",
     "nl_to_query_model",
     "parse_query_plan",

@@ -22,7 +22,6 @@ from src.llm.natural_language import (
 from src.llm.natural_language import LLMError
 from src.query_model import QueryModel
 
-
 SALES_CSV = Path(__file__).parent.parent / "artifacts" / "test_sales.csv"
 
 SCHEMA: Dict[str, str] = {
