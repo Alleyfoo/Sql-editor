@@ -185,8 +185,20 @@ class OllamaClient:
         if not isinstance(content, str) or not content.strip():
             raise LLMError("Ollama response contained no message content")
 
+        # Some models wrap JSON in markdown fences (```json … ```) even when
+        # asked for raw JSON.  Strip fences before parsing.
+        content_stripped = content.strip()
+        if content_stripped.startswith("```"):
+            # Drop opening fence line and closing fence.
+            lines = content_stripped.splitlines()
+            # Remove first line (``` or ```json) and last ``` line.
+            inner_lines = lines[1:]
+            if inner_lines and inner_lines[-1].strip() == "```":
+                inner_lines = inner_lines[:-1]
+            content_stripped = "\n".join(inner_lines).strip()
+
         try:
-            parsed = json.loads(content)
+            parsed = json.loads(content_stripped)
         except json.JSONDecodeError as exc:
             raise LLMError(f"model did not return valid JSON: {exc.msg}") from exc
 
@@ -280,7 +292,9 @@ def build_user_prompt(
         f"column_formats keys must be numeric columns from the schema above; "
         f"\"round\" must be an integer between 0 and {MAX_FORMAT_DECIMALS}.\n"
         "When aggregations are present, every non-aggregated column in "
-        "selected_columns MUST appear in group_by.\n"
+        "selected_columns MUST appear in group_by. "
+        "NEVER put aggregation aliases (e.g. 'total_sales') into "
+        "selected_columns — aggregation expressions are added automatically.\n"
         "\n"
         f"User request: {nl}\n"
         "JSON:"
@@ -537,7 +551,22 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     reply_raw = payload.get("reply", "")
     reply: str = str(reply_raw).strip() if reply_raw else ""
 
-    # selected_columns
+    # aggregations — parsed early so their display names are available for
+    # selected_columns and order_by validation below.
+    agg_raw = payload.get("aggregations", [])
+    if agg_raw is None:
+        agg_raw = []
+    if not isinstance(agg_raw, list):
+        raise LLMError("aggregations must be an array")
+    aggregations: List[Aggregation] = [
+        _parse_aggregation(entry, schema, index=i) for i, entry in enumerate(agg_raw)
+    ]
+    agg_names = {a.display_name for a in aggregations}
+
+    # selected_columns — schema columns only; aggregation aliases are emitted
+    # automatically and must NOT appear here.  We silently drop any entry that
+    # matches an aggregation display name so models that include them don't
+    # cause a hard failure.
     sel_raw = payload.get("selected_columns", [])
     if sel_raw is None:
         sel_raw = []
@@ -545,6 +574,13 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         raise LLMError("selected_columns must be an array")
     selected_columns: List[str] = []
     for i, col in enumerate(sel_raw):
+        if not isinstance(col, str) or not col:
+            raise LLMError(
+                f"selected_columns[{i}] must be a non-empty string (got {col!r})"
+            )
+        if col in agg_names:
+            # Model hallucinated the alias into selected_columns — skip it.
+            continue
         selected_columns.append(_require_column(col, schema, f"selected_columns[{i}]"))
 
     # filters
@@ -567,17 +603,6 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     group_by: List[str] = [
         _require_column(col, schema, f"group_by[{i}]") for i, col in enumerate(gb_raw)
     ]
-
-    # aggregations
-    agg_raw = payload.get("aggregations", [])
-    if agg_raw is None:
-        agg_raw = []
-    if not isinstance(agg_raw, list):
-        raise LLMError("aggregations must be an array")
-    aggregations: List[Aggregation] = [
-        _parse_aggregation(entry, schema, index=i) for i, entry in enumerate(agg_raw)
-    ]
-    agg_names = {a.display_name for a in aggregations}
 
     # having — validated against group cols + aggregation display names
     having_raw = payload.get("having", [])
