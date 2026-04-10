@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # Operators
@@ -113,7 +113,9 @@ def quote_value(value: object) -> str:
         return "1" if value else "0"
     if isinstance(value, (int, float)):
         # Reject NaN/inf — they are never valid SQL literals.
-        if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+        if isinstance(value, float) and (
+            value != value or value in (float("inf"), float("-inf"))
+        ):
             raise ValueError(f"cannot serialise non-finite float: {value!r}")
         return repr(value)
     # Everything else is rendered as text with single-quote escaping.
@@ -135,6 +137,35 @@ AGGREGATION_FUNCTIONS = (
 )
 
 ORDER_DIRECTIONS = ("ASC", "DESC")
+
+# Maximum decimal places allowed via numeric formatting.
+MAX_FORMAT_DECIMALS = 10
+
+
+# ---------------------------------------------------------------------------
+# Column formatting
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ColumnFormat:
+    """Optional display formatting for a single column.
+
+    Currently supports ``round``: wrap the column expression in
+    ``ROUND(col, N)`` so the result set already carries the desired
+    precision.  Only valid for *numeric* columns.
+    """
+
+    column: str
+    round: Optional[int] = None  # number of decimal places, 0-MAX_FORMAT_DECIMALS
+
+    def apply(self, expr: str) -> str:
+        """Wrap *expr* (a quoted SQL identifier or expression) with the
+        requested formatting function.  Returns *expr* unchanged if no
+        formatting is configured."""
+        if self.round is not None:
+            return f"ROUND({expr}, {self.round})"
+        return expr
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +225,7 @@ class Aggregation:
             expr = "COUNT(*)"
         else:
             if not self.column or self.column == "*":
-                raise ValueError(
-                    f"{func} requires a column name (got {self.column!r})"
-                )
+                raise ValueError(f"{func} requires a column name (got {self.column!r})")
             expr = f"{func}({quote_ident(self.column)})"
         if self.alias:
             expr += f" AS {quote_ident(self.alias)}"
@@ -230,6 +259,14 @@ class QueryModel:
     order_by: list = field(default_factory=list)
     limit: Optional[int] = None
 
+    # Phase 3 — plain-text summary from the LLM explaining what it did.
+    # Empty string when the model was not involved (visual composer path).
+    reply: str = ""
+
+    # Optional per-column formatting hints supplied by the LLM.
+    # Keys are column names; values are ColumnFormat instances.
+    column_formats: Dict[str, "ColumnFormat"] = field(default_factory=dict)
+
     # ------------------------------------------------------------------
     # SQL generation
     # ------------------------------------------------------------------
@@ -245,9 +282,7 @@ class QueryModel:
         if where_clause:
             parts.append(f"WHERE {where_clause}")
         if self.group_by:
-            parts.append(
-                "GROUP BY " + ", ".join(quote_ident(c) for c in self.group_by)
-            )
+            parts.append("GROUP BY " + ", ".join(quote_ident(c) for c in self.group_by))
         if self.having:
             if not self.group_by:
                 raise ValueError("HAVING requires at least one GROUP BY column")
@@ -284,13 +319,20 @@ class QueryModel:
     # ------------------------------------------------------------------
 
     def _select_clause(self) -> str:
+        fmt = self.column_formats or {}
         if self.aggregations:
-            pieces = [quote_ident(c) for c in self.selected_columns]
+            pieces = [
+                fmt[c].apply(quote_ident(c)) if c in fmt else quote_ident(c)
+                for c in self.selected_columns
+            ]
             pieces.extend(agg.to_sql() for agg in self.aggregations)
             return ", ".join(pieces) if pieces else "*"
         if not self.selected_columns:
             return "*"
-        return ", ".join(quote_ident(c) for c in self.selected_columns)
+        return ", ".join(
+            fmt[c].apply(quote_ident(c)) if c in fmt else quote_ident(c)
+            for c in self.selected_columns
+        )
 
     def _order_by_clause(self) -> str:
         pieces: list = []
@@ -300,9 +342,7 @@ class QueryModel:
             col, direction = entry
             dir_up = (direction or "ASC").strip().upper()
             if dir_up not in ORDER_DIRECTIONS:
-                raise ValueError(
-                    f"invalid ORDER BY direction: {direction!r}"
-                )
+                raise ValueError(f"invalid ORDER BY direction: {direction!r}")
             pieces.append(f"{quote_ident(col)} {dir_up}")
         return ", ".join(pieces)
 
@@ -383,6 +423,7 @@ def _assert_select_only(sql: str) -> None:
 __all__ = [
     "Filter",
     "Aggregation",
+    "ColumnFormat",
     "QueryModel",
     "OPERATORS_BY_TYPE",
     "TEXT_OPERATORS",
@@ -390,6 +431,7 @@ __all__ = [
     "DATE_OPERATORS",
     "AGGREGATION_FUNCTIONS",
     "ORDER_DIRECTIONS",
+    "MAX_FORMAT_DECIMALS",
     "quote_ident",
     "quote_value",
 ]

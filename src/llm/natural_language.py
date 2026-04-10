@@ -34,12 +34,13 @@ from urllib.request import Request, urlopen
 from ..query_model import (
     AGGREGATION_FUNCTIONS,
     Aggregation,
+    ColumnFormat,
     Filter,
+    MAX_FORMAT_DECIMALS,
     OPERATORS_BY_TYPE,
     ORDER_DIRECTIONS,
     QueryModel,
 )
-
 
 # ---------------------------------------------------------------------------
 # Errors
@@ -67,6 +68,7 @@ class LLMConfig:
     model: str = "gemma3"
     timeout: float = 60.0
     provider: str = "ollama"
+    history_depth: int = 6
 
 
 def _env_float(name: str, default: float) -> float:
@@ -96,20 +98,19 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
             section = raw
 
     host = (
-        os.environ.get("OLLAMA_HOST")
-        or section.get("host")
-        or "http://localhost:11434"
+        os.environ.get("OLLAMA_HOST") or section.get("host") or "http://localhost:11434"
     )
-    model = (
-        os.environ.get("OLLAMA_MODEL")
-        or section.get("model")
-        or "gemma3"
-    )
+    model = os.environ.get("OLLAMA_MODEL") or section.get("model") or "gemma3"
     timeout_default = float(section.get("timeout", 60.0) or 60.0)
     timeout = _env_float("OLLAMA_TIMEOUT", timeout_default)
     provider = str(section.get("provider") or "ollama")
+    try:
+        history_depth = int(section.get("history_depth", 6))
+    except (TypeError, ValueError):
+        history_depth = 6
+    history_depth = max(0, history_depth)
 
-    return LLMConfig(host=host, model=model, timeout=timeout, provider=provider)
+    return LLMConfig(host=host, model=model, timeout=timeout, provider=provider, history_depth=history_depth)
 
 
 # ---------------------------------------------------------------------------
@@ -154,12 +155,12 @@ class OllamaClient:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:  # nosec - local inference endpoint
+            with urlopen(
+                request, timeout=self.timeout
+            ) as response:  # nosec - local inference endpoint
                 body = response.read()
         except HTTPError as exc:
-            raise LLMError(
-                f"Ollama returned HTTP {exc.code}: {exc.reason}"
-            ) from exc
+            raise LLMError(f"Ollama returned HTTP {exc.code}: {exc.reason}") from exc
         except URLError as exc:
             raise LLMError(
                 f"could not reach Ollama at {self.host}: {exc.reason}"
@@ -187,9 +188,7 @@ class OllamaClient:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise LLMError(
-                f"model did not return valid JSON: {exc.msg}"
-            ) from exc
+            raise LLMError(f"model did not return valid JSON: {exc.msg}") from exc
 
         if not isinstance(parsed, dict):
             raise LLMError("model JSON must be an object at the top level")
@@ -205,7 +204,13 @@ class OllamaClient:
 SYSTEM_PROMPT = (
     "You translate a user's natural-language request about a tabular "
     "dataset into a JSON query plan. Output ONLY a single JSON object "
-    "matching the schema given. Do not invent columns. Do not emit SQL."
+    "matching the schema given. Do not invent columns. Do not emit SQL. "
+    'Always include a "reply" field: one short plain-English sentence '
+    "confirming what you understood and what the query will do. "
+    "If the user asks for numeric formatting (e.g. 'round to 2 decimals', "
+    "'show prices with 2 decimal places'), include a \"column_formats\" "
+    "object mapping each affected column name to {\"round\": N} where N is "
+    "the number of decimal places. Only apply formatting to numeric columns."
 )
 
 
@@ -213,16 +218,47 @@ def _format_schema(schema: Dict[str, str]) -> str:
     return "\n".join(f"  - {col} ({ctype})" for col, ctype in schema.items())
 
 
-def build_user_prompt(nl: str, schema: Dict[str, str]) -> str:
-    """Compose the user turn: schema, allowed values, target JSON shape."""
+def build_user_prompt(
+    nl: str,
+    schema: Dict[str, str],
+    selected_columns: Optional[List[str]] = None,
+    history: Optional[List[tuple]] = None,
+) -> str:
+    """Compose the user turn: schema, allowed values, target JSON shape.
+
+    If ``selected_columns`` is provided (columns already ticked in the
+    visual composer), they are added as a hint so the model can refine
+    or extend the current selection rather than starting from scratch.
+
+    If ``history`` is provided it must be a list of ``(question, reply)``
+    tuples (oldest first, already trimmed to the desired depth by the
+    caller).  They are embedded as a compact Q/A block so the model can
+    resolve follow-up references like "also filter by that column".
+    """
     ops = sorted({op for ops in OPERATORS_BY_TYPE.values() for op in ops})
+    context_hint = ""
+    if selected_columns:
+        context_hint = (
+            f"The user currently has these columns selected: "
+            f"{', '.join(selected_columns)}\n\n"
+        )
+    history_block = ""
+    if history:
+        lines = ["Conversation so far (oldest first):"]
+        for q, a in history:
+            lines.append(f"  Q: {q}")
+            lines.append(f"  A: {a}")
+        history_block = "\n".join(lines) + "\n\n"
     return (
         "You are given a single table named `data` with these columns:\n"
         f"{_format_schema(schema)}\n"
         "\n"
+        f"{history_block}"
+        f"{context_hint}"
         "Produce a JSON object with this exact shape (fields are optional; "
         "omit or use [] / null when not needed):\n"
         "{\n"
+        '  "reply": "One sentence confirming what the query will do.",\n'
         '  "selected_columns": ["col", ...],\n'
         '  "filters": [{"column": "col", "operator": "=", "value": "x", '
         '"logical": "AND"}, ...],\n'
@@ -231,15 +267,18 @@ def build_user_prompt(nl: str, schema: Dict[str, str]) -> str:
         '"alias": "total"}, ...],\n'
         '  "having": [{"column": "total", "operator": ">", "value": 100}, ...],\n'
         '  "order_by": [["col_or_alias", "ASC"], ...],\n'
-        '  "limit": 10\n'
+        '  "limit": 10,\n'
+        '  "column_formats": {"price": {"round": 2}}\n'
         "}\n"
         "\n"
         f"Allowed operators: {ops}\n"
         f"Allowed aggregation functions: {list(AGGREGATION_FUNCTIONS)}\n"
         f"Allowed order directions: {list(ORDER_DIRECTIONS)}\n"
-        "Allowed logical joiners: [\"AND\", \"OR\"]\n"
+        'Allowed logical joiners: ["AND", "OR"]\n'
         "For BETWEEN, value must be a 2-element array [low, high].\n"
         "For IS NULL / IS NOT NULL, omit value.\n"
+        f"column_formats keys must be numeric columns from the schema above; "
+        f"\"round\" must be an integer between 0 and {MAX_FORMAT_DECIMALS}.\n"
         "When aggregations are present, every non-aggregated column in "
         "selected_columns MUST appear in group_by.\n"
         "\n"
@@ -267,9 +306,7 @@ def _require_str(value: Any, field: str) -> str:
 def _require_column(value: Any, schema: Dict[str, str], field: str) -> str:
     col = _require_str(value, field)
     if col not in schema:
-        raise LLMError(
-            f"{field}: column {col!r} is not in the dataset schema"
-        )
+        raise LLMError(f"{field}: column {col!r} is not in the dataset schema")
     return col
 
 
@@ -303,9 +340,7 @@ def _parse_filter(
         else "AND"
     )
     if logical not in _VALID_LOGICAL:
-        raise LLMError(
-            f"{scope}.logical must be 'AND' or 'OR' (got {logical_raw!r})"
-        )
+        raise LLMError(f"{scope}.logical must be 'AND' or 'OR' (got {logical_raw!r})")
 
     value: Any
     if op in _NULLARY_OPS:
@@ -314,8 +349,7 @@ def _parse_filter(
         raw = entry.get("value")
         if not isinstance(raw, (list, tuple)) or len(raw) != 2:
             raise LLMError(
-                f"{scope}.value for BETWEEN must be a 2-element array "
-                f"(got {raw!r})"
+                f"{scope}.value for BETWEEN must be a 2-element array " f"(got {raw!r})"
             )
         lo, hi = raw
         _require_scalar(lo, f"{scope}.value[0]")
@@ -341,7 +375,9 @@ def _require_scalar(value: Any, field: str) -> None:
     )
 
 
-def _parse_aggregation(entry: Any, schema: Dict[str, str], *, index: int) -> Aggregation:
+def _parse_aggregation(
+    entry: Any, schema: Dict[str, str], *, index: int
+) -> Aggregation:
     if not isinstance(entry, dict):
         raise LLMError(
             f"aggregations[{index}] must be an object (got {type(entry).__name__})"
@@ -431,6 +467,60 @@ def _parse_limit(raw: Any) -> Optional[int]:
     return None if n == 0 else n
 
 
+def _parse_column_formats(
+    raw: Any, schema: Dict[str, str]
+) -> Dict[str, ColumnFormat]:
+    """Parse and validate the optional ``column_formats`` dict from the LLM.
+
+    Accepted shape::
+
+        {"price": {"round": 2}, "quantity": {"round": 0}}
+
+    Raises :class:`LLMError` if:
+    - the value is not a dict (when present)
+    - any key is not a numeric column in the schema
+    - ``round`` is not an integer in ``[0, MAX_FORMAT_DECIMALS]``
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise LLMError(
+            f"column_formats must be an object (got {type(raw).__name__})"
+        )
+    result: Dict[str, ColumnFormat] = {}
+    for col, spec in raw.items():
+        if col not in schema:
+            raise LLMError(
+                f"column_formats: column {col!r} is not in the dataset schema"
+            )
+        if schema[col] != "numeric":
+            raise LLMError(
+                f"column_formats: column {col!r} is type {schema[col]!r}; "
+                "formatting is only supported for numeric columns"
+            )
+        if not isinstance(spec, dict):
+            raise LLMError(
+                f"column_formats[{col!r}] must be an object (got {type(spec).__name__})"
+            )
+        round_raw = spec.get("round")
+        if round_raw is None:
+            # No recognised keys — skip silently (forward-compatible).
+            continue
+        if isinstance(round_raw, bool) or not isinstance(round_raw, (int, float)):
+            raise LLMError(
+                f"column_formats[{col!r}].round must be an integer "
+                f"(got {round_raw!r})"
+            )
+        decimals = int(round_raw)
+        if decimals < 0 or decimals > MAX_FORMAT_DECIMALS:
+            raise LLMError(
+                f"column_formats[{col!r}].round must be between 0 and "
+                f"{MAX_FORMAT_DECIMALS} (got {decimals})"
+            )
+        result[col] = ColumnFormat(column=col, round=decimals)
+    return result
+
+
 def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     """Convert a raw JSON dict from the LLM into a validated ``QueryModel``.
 
@@ -443,6 +533,10 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
             f"query plan must be a JSON object (got {type(payload).__name__})"
         )
 
+    # reply — optional plain-text confirmation from the model
+    reply_raw = payload.get("reply", "")
+    reply: str = str(reply_raw).strip() if reply_raw else ""
+
     # selected_columns
     sel_raw = payload.get("selected_columns", [])
     if sel_raw is None:
@@ -451,9 +545,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         raise LLMError("selected_columns must be an array")
     selected_columns: List[str] = []
     for i, col in enumerate(sel_raw):
-        selected_columns.append(
-            _require_column(col, schema, f"selected_columns[{i}]")
-        )
+        selected_columns.append(_require_column(col, schema, f"selected_columns[{i}]"))
 
     # filters
     filter_raw = payload.get("filters", [])
@@ -473,8 +565,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     if not isinstance(gb_raw, list):
         raise LLMError("group_by must be an array")
     group_by: List[str] = [
-        _require_column(col, schema, f"group_by[{i}]")
-        for i, col in enumerate(gb_raw)
+        _require_column(col, schema, f"group_by[{i}]") for i, col in enumerate(gb_raw)
     ]
 
     # aggregations
@@ -484,8 +575,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     if not isinstance(agg_raw, list):
         raise LLMError("aggregations must be an array")
     aggregations: List[Aggregation] = [
-        _parse_aggregation(entry, schema, index=i)
-        for i, entry in enumerate(agg_raw)
+        _parse_aggregation(entry, schema, index=i) for i, entry in enumerate(agg_raw)
     ]
     agg_names = {a.display_name for a in aggregations}
 
@@ -511,6 +601,9 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     # limit
     limit = _parse_limit(payload.get("limit"))
 
+    # column_formats — optional per-column numeric formatting
+    column_formats = _parse_column_formats(payload.get("column_formats"), schema)
+
     return QueryModel(
         table="data",
         selected_columns=selected_columns,
@@ -520,6 +613,8 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
         having=having,
         order_by=order_by,
         limit=limit,
+        reply=reply,
+        column_formats=column_formats,
     )
 
 
@@ -534,12 +629,22 @@ def nl_to_query_model(
     *,
     client: Optional[OllamaClient] = None,
     config: Optional[LLMConfig] = None,
+    selected_columns: Optional[List[str]] = None,
+    history: Optional[List[tuple]] = None,
 ) -> QueryModel:
     """Translate a natural-language request into a validated ``QueryModel``.
 
     ``client`` is injectable so tests can pass a fake without a network
     call. If neither ``client`` nor ``config`` is provided, a default
     ``LLMConfig`` is loaded from env vars only.
+
+    ``selected_columns`` — columns currently ticked in the visual
+    composer — are passed as context so the model can refine or extend
+    the active selection rather than starting from scratch.
+
+    ``history`` — list of ``(question, reply)`` tuples from prior turns
+    (oldest first, already trimmed to the configured depth).  Included
+    in the prompt so the model can resolve follow-up references.
     """
     if not isinstance(nl, str) or not nl.strip():
         raise LLMError("natural-language request is empty")
@@ -550,7 +655,9 @@ def nl_to_query_model(
         cfg = config or load_llm_config({})
         client = OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
 
-    user_prompt = build_user_prompt(nl.strip(), schema)
+    user_prompt = build_user_prompt(
+        nl.strip(), schema, selected_columns=selected_columns, history=history
+    )
     payload = client.generate_json(SYSTEM_PROMPT, user_prompt)
     return parse_query_plan(payload, schema)
 
