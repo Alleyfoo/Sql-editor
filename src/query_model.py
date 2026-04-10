@@ -7,13 +7,19 @@ SELECT statement via ``to_sql()``. It self-validates as SELECT-only before
 returning; ``executor.py`` re-validates with a second-layer keyword
 blocklist at run time.
 
-Phase 1 uses ``selected_columns`` and ``filters`` only. The other fields
-(``group_by``, ``aggregations``, ``having``, ``order_by``, ``limit``) are
-inert seams for Phase 2 — ``to_sql()`` emits nothing for them when empty.
+Phase 1 wires up ``selected_columns`` and ``filters``. Phase 2 adds
+``group_by``, ``aggregations``, ``having``, ``order_by``, and ``limit``.
+All clauses are emitted only when the corresponding field is non-empty.
 
-TODO(Phase 2): move filter values to parameterized execution once the
-executor API grows to accept parameter binds. Inlining is safe here
-because (a) the model is never fed user-typed SQL, (b) values are
+Strict-mode rule: when ``aggregations`` is non-empty, every
+non-aggregated column in ``selected_columns`` must appear in
+``group_by``. ``to_sql()`` raises ``ValueError`` otherwise. This matches
+Postgres/MySQL strict behavior and catches the "SQLite silently picks an
+arbitrary row per group" footgun.
+
+TODO: move filter values to parameterized execution once the executor
+API grows to accept parameter binds. Inlining is safe here because
+(a) the model is never fed user-typed SQL, (b) values are
 single-quote-escaped, (c) the executor enforces a keyword blocklist.
 """
 
@@ -116,6 +122,22 @@ def quote_value(value: object) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Aggregation constants
+# ---------------------------------------------------------------------------
+
+AGGREGATION_FUNCTIONS = (
+    "SUM",
+    "COUNT",
+    "AVG",
+    "MIN",
+    "MAX",
+    "COUNT DISTINCT",
+)
+
+ORDER_DIRECTIONS = ("ASC", "DESC")
+
+
+# ---------------------------------------------------------------------------
 # Filter / QueryModel dataclasses
 # ---------------------------------------------------------------------------
 
@@ -146,11 +168,48 @@ class Filter:
 
 @dataclass
 class Aggregation:
-    """Phase 2 seam — unused in Phase 1."""
+    """One aggregation expression: ``function(column) [AS alias]``.
+
+    ``function`` must be one of ``AGGREGATION_FUNCTIONS``. ``COUNT`` accepts
+    ``column == "*"`` for ``COUNT(*)``. ``COUNT DISTINCT`` renders as
+    ``COUNT(DISTINCT col)`` and requires a real column name.
+    """
 
     column: str
     function: str  # SUM, COUNT, AVG, MIN, MAX, COUNT DISTINCT
     alias: Optional[str] = None
+
+    def to_sql(self) -> str:
+        func = (self.function or "").strip().upper()
+        if func not in AGGREGATION_FUNCTIONS:
+            raise ValueError(
+                f"unknown aggregation function: {self.function!r} "
+                f"(must be one of {AGGREGATION_FUNCTIONS})"
+            )
+        if func == "COUNT DISTINCT":
+            if self.column == "*" or not self.column:
+                raise ValueError("COUNT DISTINCT requires a column name")
+            expr = f"COUNT(DISTINCT {quote_ident(self.column)})"
+        elif func == "COUNT" and self.column == "*":
+            expr = "COUNT(*)"
+        else:
+            if not self.column or self.column == "*":
+                raise ValueError(
+                    f"{func} requires a column name (got {self.column!r})"
+                )
+            expr = f"{func}({quote_ident(self.column)})"
+        if self.alias:
+            expr += f" AS {quote_ident(self.alias)}"
+        return expr
+
+    @property
+    def display_name(self) -> str:
+        """Human-friendly label used by HAVING/ORDER BY column pickers."""
+        if self.alias:
+            return self.alias
+        if self.function.upper() == "COUNT" and self.column == "*":
+            return "count_all"
+        return f"{self.function.lower().replace(' ', '_')}_{self.column}"
 
 
 @dataclass
@@ -176,6 +235,8 @@ class QueryModel:
     # ------------------------------------------------------------------
 
     def to_sql(self) -> str:
+        self._validate_structure()
+
         select_clause = self._select_clause()
         from_clause = f"FROM {quote_ident(self.table)}"
         where_clause = self._where_clause(self.filters)
@@ -183,22 +244,16 @@ class QueryModel:
         parts = [f"SELECT {select_clause}", from_clause]
         if where_clause:
             parts.append(f"WHERE {where_clause}")
-
-        # Phase 2 seams
         if self.group_by:
             parts.append(
                 "GROUP BY " + ", ".join(quote_ident(c) for c in self.group_by)
             )
         if self.having:
+            if not self.group_by:
+                raise ValueError("HAVING requires at least one GROUP BY column")
             parts.append("HAVING " + self._where_clause(self.having))
         if self.order_by:
-            parts.append(
-                "ORDER BY "
-                + ", ".join(
-                    f"{quote_ident(col)} {direction.upper()}"
-                    for col, direction in self.order_by
-                )
-            )
+            parts.append("ORDER BY " + self._order_by_clause())
         if self.limit is not None:
             if not isinstance(self.limit, int) or self.limit < 0:
                 raise ValueError(f"invalid LIMIT: {self.limit!r}")
@@ -210,23 +265,46 @@ class QueryModel:
 
     # ------------------------------------------------------------------
 
+    def _validate_structure(self) -> None:
+        """Strict mode: reject SELECT/GROUP BY combinations that violate
+        standard SQL grouping rules. SQLite would otherwise silently pick an
+        arbitrary row per group."""
+        if not self.aggregations:
+            return
+        if not self.selected_columns:
+            return
+        group_set = set(self.group_by)
+        stray = [c for c in self.selected_columns if c not in group_set]
+        if stray:
+            raise ValueError(
+                "non-aggregated columns must appear in GROUP BY when "
+                f"aggregations are present: {stray}"
+            )
+
+    # ------------------------------------------------------------------
+
     def _select_clause(self) -> str:
         if self.aggregations:
-            # Phase 2 path — include aggregations alongside any group-by cols.
-            pieces = []
-            for col in self.selected_columns:
-                pieces.append(quote_ident(col))
-            for agg in self.aggregations:
-                func = agg.function.upper()
-                col = "*" if agg.column == "*" else quote_ident(agg.column)
-                expr = f"{func}({col})"
-                if agg.alias:
-                    expr += f" AS {quote_ident(agg.alias)}"
-                pieces.append(expr)
+            pieces = [quote_ident(c) for c in self.selected_columns]
+            pieces.extend(agg.to_sql() for agg in self.aggregations)
             return ", ".join(pieces) if pieces else "*"
         if not self.selected_columns:
             return "*"
         return ", ".join(quote_ident(c) for c in self.selected_columns)
+
+    def _order_by_clause(self) -> str:
+        pieces: list = []
+        for entry in self.order_by:
+            if not isinstance(entry, tuple) or len(entry) != 2:
+                raise ValueError(f"invalid ORDER BY entry: {entry!r}")
+            col, direction = entry
+            dir_up = (direction or "ASC").strip().upper()
+            if dir_up not in ORDER_DIRECTIONS:
+                raise ValueError(
+                    f"invalid ORDER BY direction: {direction!r}"
+                )
+            pieces.append(f"{quote_ident(col)} {dir_up}")
+        return ", ".join(pieces)
 
     @staticmethod
     def _where_clause(filters: list) -> str:
@@ -310,6 +388,8 @@ __all__ = [
     "TEXT_OPERATORS",
     "NUMERIC_OPERATORS",
     "DATE_OPERATORS",
+    "AGGREGATION_FUNCTIONS",
+    "ORDER_DIRECTIONS",
     "quote_ident",
     "quote_value",
 ]

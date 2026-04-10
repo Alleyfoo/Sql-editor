@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from src.query_model import (
+    Aggregation,
     Filter,
     QueryModel,
     _assert_select_only,
@@ -130,3 +131,152 @@ def test_assert_select_only_rejects_comment_only():
 def test_assert_select_only_rejects_ddl_after_comment():
     with pytest.raises(ValueError):
         _assert_select_only("/* hi */ DELETE FROM data")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — aggregations, GROUP BY, HAVING, ORDER BY
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "func,column,expected",
+    [
+        ("SUM", "amount", 'SUM("amount")'),
+        ("AVG", "amount", 'AVG("amount")'),
+        ("MIN", "amount", 'MIN("amount")'),
+        ("MAX", "amount", 'MAX("amount")'),
+        ("COUNT", "id", 'COUNT("id")'),
+    ],
+)
+def test_aggregation_function_rendering(func, column, expected):
+    assert Aggregation(column=column, function=func).to_sql() == expected
+
+
+def test_count_star():
+    assert Aggregation(column="*", function="COUNT").to_sql() == "COUNT(*)"
+
+
+def test_count_distinct():
+    a = Aggregation(column="customer", function="COUNT DISTINCT")
+    assert a.to_sql() == 'COUNT(DISTINCT "customer")'
+
+
+def test_count_distinct_rejects_star():
+    with pytest.raises(ValueError):
+        Aggregation(column="*", function="COUNT DISTINCT").to_sql()
+
+
+def test_sum_rejects_star():
+    with pytest.raises(ValueError):
+        Aggregation(column="*", function="SUM").to_sql()
+
+
+def test_unknown_function_rejected():
+    with pytest.raises(ValueError):
+        Aggregation(column="a", function="BOGUS").to_sql()
+
+
+def test_aggregation_with_alias():
+    a = Aggregation(column="amount", function="SUM", alias="total")
+    assert a.to_sql() == 'SUM("amount") AS "total"'
+
+
+def test_select_only_aggregation_no_group_by():
+    m = QueryModel(
+        aggregations=[Aggregation(column="*", function="COUNT", alias="n")]
+    )
+    assert m.to_sql() == 'SELECT COUNT(*) AS "n" FROM "data"'
+
+
+def test_group_by_with_aggregation():
+    m = QueryModel(
+        selected_columns=["region"],
+        group_by=["region"],
+        aggregations=[
+            Aggregation(column="amount", function="SUM", alias="total")
+        ],
+    )
+    assert m.to_sql() == (
+        'SELECT "region", SUM("amount") AS "total" '
+        'FROM "data" '
+        'GROUP BY "region"'
+    )
+
+
+def test_strict_rejects_non_aggregated_column_not_in_group_by():
+    m = QueryModel(
+        selected_columns=["region", "city"],
+        group_by=["region"],
+        aggregations=[Aggregation(column="amount", function="SUM")],
+    )
+    with pytest.raises(ValueError, match="non-aggregated columns"):
+        m.to_sql()
+
+
+def test_having_requires_group_by():
+    m = QueryModel(
+        having=[Filter(column="total", operator=">", value=100)],
+    )
+    with pytest.raises(ValueError, match="HAVING requires"):
+        m.to_sql()
+
+
+def test_having_clause_renders():
+    m = QueryModel(
+        selected_columns=["region"],
+        group_by=["region"],
+        aggregations=[
+            Aggregation(column="amount", function="SUM", alias="total")
+        ],
+        having=[Filter(column="total", operator=">", value=100)],
+    )
+    assert m.to_sql() == (
+        'SELECT "region", SUM("amount") AS "total" '
+        'FROM "data" '
+        'GROUP BY "region" '
+        'HAVING "total" > 100'
+    )
+
+
+def test_order_by_single_column_asc():
+    m = QueryModel(order_by=[("name", "ASC")])
+    assert m.to_sql() == 'SELECT * FROM "data" ORDER BY "name" ASC'
+
+
+def test_order_by_multi_column_mixed_direction():
+    m = QueryModel(order_by=[("region", "ASC"), ("amount", "DESC")])
+    assert m.to_sql() == (
+        'SELECT * FROM "data" ORDER BY "region" ASC, "amount" DESC'
+    )
+
+
+def test_order_by_invalid_direction_rejected():
+    m = QueryModel(order_by=[("name", "SIDEWAYS")])
+    with pytest.raises(ValueError, match="direction"):
+        m.to_sql()
+
+
+def test_full_phase2_clause_ordering():
+    m = QueryModel(
+        selected_columns=["region"],
+        filters=[Filter(column="amount", operator=">", value=0)],
+        group_by=["region"],
+        aggregations=[
+            Aggregation(column="amount", function="SUM", alias="total")
+        ],
+        having=[Filter(column="total", operator=">=", value=1000)],
+        order_by=[("total", "DESC")],
+        limit=10,
+    )
+    sql = m.to_sql()
+    assert sql == (
+        'SELECT "region", SUM("amount") AS "total" '
+        'FROM "data" '
+        'WHERE "amount" > 0 '
+        'GROUP BY "region" '
+        'HAVING "total" >= 1000 '
+        'ORDER BY "total" DESC '
+        'LIMIT 10'
+    )
+    # Full validator still accepts it.
+    _assert_select_only(sql)

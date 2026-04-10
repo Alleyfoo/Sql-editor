@@ -201,10 +201,14 @@ class FilterRows(ttk.Frame):
     # ------------------------------------------------------------------
 
     def set_schema(self, schema: Dict[str, str]) -> None:
+        """Replace the schema shown in column dropdowns.
+
+        Intentionally does NOT fire on_change — the caller may be mid-refresh
+        and a fresh event would cause re-entrancy.
+        """
         self.schema = schema
         for row in self._rows:
             row._column_box.configure(values=list(schema.keys()))
-        self._fire_change()
 
     def add_row(self) -> None:
         row = _FilterRow(self, self._rows_container, len(self._rows))

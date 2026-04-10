@@ -9,10 +9,13 @@ to your CSV and the SQLite database is in-memory and locked read-only.
 
 ## Status
 
-**Phase 1** — ingestion, field selection, filter composer, live SQL preview,
-read-only executor, results table, CSV export. Aggregation / GROUP BY,
-LLM natural-language input, and multi-table JOINs are scoped for later
-phases and stubbed in the UI.
+**Phase 2** — Phase 1 plus aggregation controls (`SUM` / `COUNT` / `AVG` /
+`MIN` / `MAX` / `COUNT DISTINCT`), `GROUP BY`, `HAVING` (reuses the filter
+composer, dropdown scoped to group columns and aggregation aliases),
+multi-column `ORDER BY` with `ASC` / `DESC`. `to_sql()` enforces the
+standard SQL rule that every non-aggregated column in the SELECT list
+must appear in GROUP BY when aggregations are present. LLM natural-language
+input (Phase 3) and multi-table JOINs (Phase 4) are not yet implemented.
 
 ## Install
 
@@ -90,7 +93,9 @@ Sql-editor/
 │   ├── config.py             # YAML config loader
 │   └── ui/
 │       ├── query_builder.py  # Main window
-│       ├── filter_rows.py    # Dynamic filter composer
+│       ├── filter_rows.py    # Dynamic filter composer (WHERE and HAVING)
+│       ├── aggregation.py    # GROUP BY + aggregation rows
+│       ├── order_by.py       # Multi-column ORDER BY composer
 │       ├── sql_preview.py    # Read-only Text widget w/ keyword highlight
 │       └── results_table.py  # ttk.Treeview results widget
 ├── tests/                    # pytest suite
@@ -114,8 +119,10 @@ See `VENDOR.md` for exact file-level attribution with commit SHAs.
 
 ## Roadmap
 
-- **Phase 2** — Aggregation (`SUM` / `COUNT` / `AVG` / `MIN` / `MAX` /
-  `COUNT DISTINCT`), `GROUP BY`, `HAVING`, `ORDER BY`.
+- **Phase 1** ✓ — Ingestion, field selection, filter composer, SQL preview,
+  executor, results table, CSV export.
+- **Phase 2** ✓ — Aggregation (`SUM` / `COUNT` / `AVG` / `MIN` / `MAX` /
+  `COUNT DISTINCT`), `GROUP BY`, `HAVING`, multi-column `ORDER BY`.
 - **Phase 3** — LLM natural-language input via Ollama (`gemma3`), emitting
   a `QueryModel` (not raw SQL) that passes through the same validator
   before execution.

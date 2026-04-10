@@ -15,7 +15,9 @@ from ..config import load_config
 from ..executor import ExecutionError, execute
 from ..ingestion import TABLE_NAME, load_csv
 from ..query_model import QueryModel
+from .aggregation import AggregationPanel
 from .filter_rows import FilterRows
+from .order_by import OrderByRows
 from .results_table import ResultsTable
 from .sql_preview import SqlPreview
 
@@ -79,7 +81,7 @@ class QueryBuilderApp(tk.Tk):
         center = ttk.Frame(top)
         top.add(center, weight=2)
 
-        self._filters_frame = ttk.LabelFrame(center, text="Filters")
+        self._filters_frame = ttk.LabelFrame(center, text="Filters (WHERE)")
         self._filters_frame.pack(fill="x", padx=4, pady=4)
         self._filter_rows = FilterRows(
             self._filters_frame, schema={}, on_change=self._refresh_sql
@@ -88,30 +90,49 @@ class QueryBuilderApp(tk.Tk):
 
         self._agg_frame = ttk.LabelFrame(center, text="Grouping & Aggregations")
         self._agg_frame.pack(fill="x", padx=4, pady=4)
-        ttk.Label(
-            self._agg_frame,
-            text="(Phase 2 — not yet implemented)",
+        self._aggregation = AggregationPanel(
+            self._agg_frame, schema={}, on_change=self._refresh_sql
+        )
+        self._aggregation.pack(fill="x", padx=4, pady=4)
+
+        self._having_frame = ttk.LabelFrame(center, text="HAVING (on grouped results)")
+        self._having_frame.pack(fill="x", padx=4, pady=4)
+        self._having_rows = FilterRows(
+            self._having_frame, schema={}, on_change=self._refresh_sql
+        )
+        self._having_rows.pack(fill="x", padx=4, pady=4)
+        self._having_hint = ttk.Label(
+            self._having_frame,
+            text="(Add a GROUP BY column above to enable HAVING.)",
             foreground="#888888",
-        ).pack(padx=6, pady=6, anchor="w")
+        )
+        self._having_hint.pack(padx=4, anchor="w")
 
         self._order_frame = ttk.LabelFrame(center, text="Order & Limit")
         self._order_frame.pack(fill="x", padx=4, pady=4)
-        ttk.Label(self._order_frame, text="LIMIT:").grid(row=0, column=0, padx=4, pady=4)
+        self._order_rows = OrderByRows(
+            self._order_frame, columns=[], on_change=self._refresh_sql
+        )
+        self._order_rows.pack(fill="x", padx=4, pady=(4, 0))
+
+        limit_row = ttk.Frame(self._order_frame)
+        limit_row.pack(fill="x", padx=4, pady=(6, 4))
+        ttk.Label(limit_row, text="LIMIT:").pack(side="left")
         self._limit_var = tk.StringVar(value=str(self._default_limit))
         self._limit_var.trace_add("write", lambda *_: self._refresh_sql())
         self._limit_spin = ttk.Spinbox(
-            self._order_frame,
+            limit_row,
             from_=0,
             to=1_000_000,
             textvariable=self._limit_var,
             width=10,
         )
-        self._limit_spin.grid(row=0, column=1, padx=4, pady=4)
+        self._limit_spin.pack(side="left", padx=4)
         ttk.Label(
-            self._order_frame,
-            text="(0 = no limit; ORDER BY is Phase 2)",
+            limit_row,
+            text="(0 = no limit)",
             foreground="#888888",
-        ).grid(row=0, column=2, padx=6)
+        ).pack(side="left", padx=6)
 
         # --- Right panel: SQL preview ---
         right = ttk.LabelFrame(top, text="Generated SQL")
@@ -168,6 +189,12 @@ class QueryBuilderApp(tk.Tk):
         self._populate_columns(schema)
         self._filter_rows.clear()
         self._filter_rows.set_schema(schema)
+        self._aggregation.clear()
+        self._aggregation.set_schema(schema)
+        self._having_rows.clear()
+        self._having_rows.set_schema({})
+        self._order_rows.clear()
+        self._order_rows.set_columns(list(schema.keys()))
         self._results.clear()
         self._row_count_var.set("0 rows")
         self._export_btn.configure(state="disabled")
@@ -204,7 +231,22 @@ class QueryBuilderApp(tk.Tk):
             self._run_btn.configure(state="disabled")
             return
 
+        group_by = self._aggregation.get_group_by()
+        aggregations = self._aggregation.get_aggregations()
+
+        # HAVING is only meaningful with GROUP BY — keep its schema in sync
+        # with the current group columns + aggregation aliases. This does
+        # not fire on_change (set_schema is silent by design).
+        self._sync_having_schema(group_by, aggregations)
+        # ORDER BY can reference any of the source columns plus any
+        # aggregation aliases.
+        self._sync_order_columns(aggregations)
+
         self._model.filters = self._filter_rows.get_filters()
+        self._model.group_by = group_by
+        self._model.aggregations = aggregations
+        self._model.having = self._having_rows.get_filters() if group_by else []
+        self._model.order_by = self._order_rows.get_order_by()
         self._model.limit = self._parse_limit()
 
         try:
@@ -216,6 +258,33 @@ class QueryBuilderApp(tk.Tk):
 
         self._sql_preview.set_sql(sql)
         self._run_btn.configure(state="normal")
+
+    def _sync_having_schema(self, group_by, aggregations) -> None:
+        """HAVING can reference group columns and aggregation aliases."""
+        having_schema: Dict[str, str] = {
+            col: self._schema.get(col, "text") for col in group_by
+        }
+        for agg in aggregations:
+            # Aggregation outputs are treated as numeric for operator
+            # purposes — min/max/avg/sum/count all support numeric
+            # comparisons, and MIN/MAX on text still admits ordering.
+            having_schema[agg.display_name] = "numeric"
+        self._having_rows.set_schema(having_schema)
+
+        # Show or hide the "needs GROUP BY" hint. Rows added without
+        # GROUP BY are silently dropped by ``_refresh_sql``.
+        if group_by:
+            self._having_hint.pack_forget()
+        else:
+            self._having_hint.pack(padx=4, anchor="w")
+
+    def _sync_order_columns(self, aggregations) -> None:
+        cols = list(self._schema.keys())
+        for agg in aggregations:
+            name = agg.display_name
+            if name not in cols:
+                cols.append(name)
+        self._order_rows.set_columns(cols)
 
     def _parse_limit(self) -> Optional[int]:
         raw = (self._limit_var.get() or "").strip()
