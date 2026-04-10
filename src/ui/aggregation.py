@@ -170,6 +170,33 @@ class AggregationPanel(ttk.Frame):
         self._rows.append(_AggregationRow(self, self._rows_container))
         self._fire_change()
 
+    def set_state(
+        self,
+        group_by: List[str],
+        aggregations: List[Aggregation],
+    ) -> None:
+        """Replace the GROUP BY selection and aggregation rows in one go.
+
+        Used by the Phase 3 NL flow. Fires ``on_change`` exactly once at
+        the end so the SQL preview refreshes a single time.
+        """
+        wanted = set(group_by)
+        for col, var in self._group_by_vars.items():
+            var.set(col in wanted)
+
+        for row in self._rows:
+            row.destroy()
+        self._rows = []
+
+        for agg in aggregations:
+            row = _AggregationRow(self, self._rows_container)
+            row.function_var.set(agg.function)
+            row.column_var.set(agg.column)
+            row.alias_var.set(agg.alias or "")
+            self._rows.append(row)
+
+        self._fire_change()
+
     # ------------------------------------------------------------------
 
     def _rebuild_group_by_checks(self) -> None:

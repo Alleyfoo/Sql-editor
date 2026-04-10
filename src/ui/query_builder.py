@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -14,6 +15,11 @@ from .. import history
 from ..config import load_config
 from ..executor import ExecutionError, execute
 from ..ingestion import TABLE_NAME, load_csv
+from ..llm.natural_language import (
+    LLMError,
+    load_llm_config,
+    nl_to_query_model,
+)
 from ..query_model import QueryModel
 from .aggregation import AggregationPanel
 from .filter_rows import FilterRows
@@ -39,6 +45,7 @@ class QueryBuilderApp(tk.Tk):
         self._schema: Dict[str, str] = {}
         self._model = QueryModel(table=TABLE_NAME)
         self._default_limit = int(app_cfg.get("default_limit", 1000))
+        self._llm_config = load_llm_config(self._config)
 
         self._build_menu()
         self._build_layout()
@@ -60,6 +67,26 @@ class QueryBuilderApp(tk.Tk):
         self.config(menu=menubar)
 
     def _build_layout(self) -> None:
+        # --- Top strip: natural-language input (Phase 3) ---
+        nl_bar = ttk.Frame(self)
+        nl_bar.pack(fill="x", padx=6, pady=(6, 0))
+        ttk.Label(nl_bar, text="Ask in natural language:").pack(side="left")
+        self._nl_var = tk.StringVar()
+        self._nl_entry = ttk.Entry(nl_bar, textvariable=self._nl_var)
+        self._nl_entry.pack(side="left", fill="x", expand=True, padx=6)
+        self._nl_entry.bind("<Return>", lambda _e: self._ask_nl())
+        self._nl_entry.configure(state="disabled")
+        self._ask_btn = ttk.Button(
+            nl_bar, text="Ask", command=self._ask_nl, state="disabled"
+        )
+        self._ask_btn.pack(side="left")
+        self._nl_status_var = tk.StringVar(value="")
+        ttk.Label(
+            nl_bar,
+            textvariable=self._nl_status_var,
+            foreground="#888888",
+        ).pack(side="left", padx=8)
+
         # Top paned window: left (columns) | center (sections) | right (SQL)
         top = ttk.PanedWindow(self, orient="horizontal")
         top.pack(fill="both", expand=True, padx=6, pady=6)
@@ -198,6 +225,8 @@ class QueryBuilderApp(tk.Tk):
         self._results.clear()
         self._row_count_var.set("0 rows")
         self._export_btn.configure(state="disabled")
+        self._nl_entry.configure(state="normal")
+        self._ask_btn.configure(state="normal")
         self._refresh_sql()
         self.title(f"{self.title()} — {Path(path).name}")
 
@@ -340,6 +369,77 @@ class QueryBuilderApp(tk.Tk):
             messagebox.showerror("Export failed", str(exc))
             return
         messagebox.showinfo("Export CSV", f"Wrote {len(df)} rows to {path}.")
+
+    # ------------------------------------------------------------------
+    # Natural-language (Phase 3)
+    # ------------------------------------------------------------------
+
+    def _ask_nl(self) -> None:
+        if self._conn is None:
+            return
+        text = (self._nl_var.get() or "").strip()
+        if not text:
+            return
+        self._ask_btn.configure(state="disabled")
+        self._nl_entry.configure(state="disabled")
+        self._nl_status_var.set("Thinking…")
+        thread = threading.Thread(
+            target=self._nl_worker, args=(text,), daemon=True
+        )
+        thread.start()
+
+    def _nl_worker(self, text: str) -> None:
+        """Runs on a background thread — must never touch Tk widgets."""
+        try:
+            model = nl_to_query_model(
+                text, self._schema, config=self._llm_config
+            )
+        except LLMError as exc:
+            self.after(0, self._nl_done, exc)
+            return
+        except Exception as exc:  # pragma: no cover - unexpected transport bugs
+            self.after(0, self._nl_done, exc)
+            return
+        self.after(0, self._nl_done, model)
+
+    def _nl_done(self, payload: object) -> None:
+        """Runs on the Tk thread. ``payload`` is a ``QueryModel`` or an
+        ``Exception``."""
+        self._ask_btn.configure(state="normal")
+        self._nl_entry.configure(state="normal")
+        self._nl_status_var.set("")
+        if isinstance(payload, Exception):
+            messagebox.showerror("LLM error", str(payload))
+            return
+        if isinstance(payload, QueryModel):
+            self._apply_model(payload)
+
+    def _apply_model(self, model: QueryModel) -> None:
+        """Push an LLM-produced ``QueryModel`` into the UI widgets.
+
+        Does NOT execute the query — the user must click Run. This is a
+        deliberate safety boundary: the user always sees the generated
+        SQL before any rows move.
+        """
+        # Reconcile column selection with the columns tree.
+        wanted = set(model.selected_columns)
+        for item in self._columns_tree.get_children():
+            label = "☑ " if item in wanted else "☐ "
+            self._columns_tree.item(item, text=f"{label}{item}")
+        self._model.selected_columns = [
+            c for c in model.selected_columns if c in self._schema
+        ]
+
+        self._filter_rows.set_filters(model.filters)
+        self._aggregation.set_state(model.group_by, model.aggregations)
+        # HAVING schema will be re-synced by _refresh_sql below; populate
+        # the rows first so they're ready for the new schema.
+        self._having_rows.set_filters(model.having)
+        self._order_rows.set_order_by(model.order_by)
+        self._limit_var.set(
+            "" if model.limit is None else str(model.limit)
+        )
+        self._refresh_sql()
 
     # ------------------------------------------------------------------
 

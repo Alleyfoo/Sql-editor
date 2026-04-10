@@ -216,6 +216,42 @@ class FilterRows(ttk.Frame):
         self._relabel()
         self._fire_change()
 
+    def set_filters(self, filters: List[Filter]) -> None:
+        """Replace all current rows with the given ``Filter`` list.
+
+        Used by the Phase 3 NL flow when pushing an LLM-produced
+        ``QueryModel`` back into the widgets. Fires ``on_change`` exactly
+        once at the end to trigger a single SQL preview refresh.
+        """
+        for row in self._rows:
+            row.destroy()
+        self._rows = []
+
+        for f in filters:
+            row = _FilterRow(self, self._rows_container, len(self._rows))
+            col_type = self.schema.get(f.column, "text")
+            ops = OPERATORS_BY_TYPE.get(col_type, TEXT_OPERATORS)
+            row._operator_box.configure(values=list(ops))
+            row.column_var.set(f.column)
+            row.operator_var.set(f.operator)
+            row.logical_var.set(f.logical or "AND")
+
+            op = (f.operator or "").upper()
+            if op == "BETWEEN" and isinstance(f.value, tuple) and len(f.value) == 2:
+                row.value_var.set("" if f.value[0] is None else str(f.value[0]))
+                row.value2_var.set("" if f.value[1] is None else str(f.value[1]))
+            elif op in {"IS NULL", "IS NOT NULL"}:
+                row.value_var.set("")
+                row.value2_var.set("")
+            else:
+                row.value_var.set("" if f.value is None else str(f.value))
+                row.value2_var.set("")
+            row._update_value_visibility()
+            self._rows.append(row)
+
+        self._relabel()
+        self._fire_change()
+
     def clear(self) -> None:
         for row in self._rows:
             row.destroy()

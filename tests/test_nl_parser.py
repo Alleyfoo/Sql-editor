@@ -1,0 +1,336 @@
+"""Tests for the Phase 3 LLM JSON → QueryModel parser.
+
+No live Ollama call — ``OllamaClient`` is replaced with a stub for the
+end-to-end test. The happy-path parser tests just feed dicts in
+directly.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict
+
+import pytest
+
+from src.llm.natural_language import (
+    LLMError,
+    OllamaClient,
+    nl_to_query_model,
+    parse_query_plan,
+)
+from src.query_model import Aggregation, Filter, QueryModel
+
+
+SCHEMA: Dict[str, str] = {
+    "id": "numeric",
+    "name": "text",
+    "amount": "numeric",
+    "country": "text",
+    "created_at": "date",
+}
+
+
+# ---------------------------------------------------------------------------
+# Happy path
+# ---------------------------------------------------------------------------
+
+
+def test_parse_minimal() -> None:
+    model = parse_query_plan({}, SCHEMA)
+    assert isinstance(model, QueryModel)
+    assert model.selected_columns == []
+    assert model.filters == []
+    assert model.group_by == []
+    assert model.aggregations == []
+    assert model.having == []
+    assert model.order_by == []
+    assert model.limit is None
+    # And it round-trips to a valid SELECT *.
+    sql = model.to_sql()
+    assert sql.upper().startswith("SELECT *")
+
+
+def test_parse_selected_columns() -> None:
+    model = parse_query_plan(
+        {"selected_columns": ["name", "amount"]}, SCHEMA
+    )
+    assert model.selected_columns == ["name", "amount"]
+
+
+def test_parse_filter_happy_path() -> None:
+    payload = {
+        "filters": [
+            {
+                "column": "country",
+                "operator": "=",
+                "value": "FI",
+                "logical": "AND",
+            }
+        ]
+    }
+    model = parse_query_plan(payload, SCHEMA)
+    assert len(model.filters) == 1
+    f = model.filters[0]
+    assert isinstance(f, Filter)
+    assert f.column == "country"
+    assert f.operator == "="
+    assert f.value == "FI"
+    assert f.logical == "AND"
+
+
+def test_parse_filter_between() -> None:
+    model = parse_query_plan(
+        {
+            "filters": [
+                {
+                    "column": "amount",
+                    "operator": "BETWEEN",
+                    "value": [10, 100],
+                }
+            ]
+        },
+        SCHEMA,
+    )
+    f = model.filters[0]
+    assert f.operator == "BETWEEN"
+    assert f.value == (10, 100)
+
+
+def test_parse_filter_is_null_no_value() -> None:
+    model = parse_query_plan(
+        {
+            "filters": [
+                {"column": "name", "operator": "IS NULL"}
+            ]
+        },
+        SCHEMA,
+    )
+    assert model.filters[0].value is None
+
+
+def test_parse_aggregation_count_star() -> None:
+    model = parse_query_plan(
+        {
+            "aggregations": [
+                {"function": "COUNT", "column": "*", "alias": "n"}
+            ]
+        },
+        SCHEMA,
+    )
+    assert len(model.aggregations) == 1
+    agg = model.aggregations[0]
+    assert isinstance(agg, Aggregation)
+    assert agg.function == "COUNT"
+    assert agg.column == "*"
+    assert agg.alias == "n"
+
+
+def test_parse_full_grouped_query() -> None:
+    payload = {
+        "selected_columns": ["country"],
+        "filters": [
+            {"column": "amount", "operator": ">", "value": 0}
+        ],
+        "group_by": ["country"],
+        "aggregations": [
+            {"function": "SUM", "column": "amount", "alias": "total"},
+            {"function": "COUNT", "column": "*"},
+        ],
+        "having": [
+            {"column": "total", "operator": ">", "value": 100}
+        ],
+        "order_by": [["total", "DESC"]],
+        "limit": 10,
+    }
+    model = parse_query_plan(payload, SCHEMA)
+    sql = model.to_sql()
+    assert "GROUP BY" in sql
+    assert "HAVING" in sql
+    assert "ORDER BY" in sql
+    assert "LIMIT 10" in sql
+    assert sql.upper().startswith("SELECT")
+
+
+def test_parse_order_by_uses_agg_alias() -> None:
+    model = parse_query_plan(
+        {
+            "aggregations": [
+                {"function": "SUM", "column": "amount", "alias": "total"}
+            ],
+            "order_by": [["total", "DESC"]],
+        },
+        SCHEMA,
+    )
+    assert model.order_by == [("total", "DESC")]
+
+
+def test_parse_limit_coercion() -> None:
+    assert parse_query_plan({"limit": None}, SCHEMA).limit is None
+    assert parse_query_plan({"limit": 0}, SCHEMA).limit is None
+    assert parse_query_plan({"limit": 10}, SCHEMA).limit == 10
+
+
+# ---------------------------------------------------------------------------
+# Safety — the parser is the trust boundary
+# ---------------------------------------------------------------------------
+
+
+def test_parse_rejects_non_dict_payload() -> None:
+    for bad in ([1, 2], "hello", 42, None):
+        with pytest.raises(LLMError):
+            parse_query_plan(bad, SCHEMA)  # type: ignore[arg-type]
+
+
+def test_parse_rejects_unknown_selected_column() -> None:
+    with pytest.raises(LLMError) as exc:
+        parse_query_plan({"selected_columns": ["ghost"]}, SCHEMA)
+    assert "ghost" in str(exc.value)
+
+
+def test_parse_rejects_unknown_filter_column() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan(
+            {"filters": [{"column": "ghost", "operator": "=", "value": "x"}]},
+            SCHEMA,
+        )
+
+
+def test_parse_rejects_bad_operator_for_text_column() -> None:
+    # ">" is not valid on text columns.
+    with pytest.raises(LLMError) as exc:
+        parse_query_plan(
+            {"filters": [{"column": "name", "operator": ">", "value": "z"}]},
+            SCHEMA,
+        )
+    assert "operator" in str(exc.value).lower()
+
+
+def test_parse_rejects_bad_aggregation_function() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan(
+            {"aggregations": [{"function": "SUMX", "column": "amount"}]},
+            SCHEMA,
+        )
+
+
+def test_parse_rejects_star_outside_count() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan(
+            {"aggregations": [{"function": "SUM", "column": "*"}]},
+            SCHEMA,
+        )
+
+
+def test_parse_having_requires_group_by() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan(
+            {"having": [{"column": "amount", "operator": ">", "value": 1}]},
+            SCHEMA,
+        )
+
+
+def test_parse_rejects_unknown_order_by_column() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan({"order_by": [["ghost", "ASC"]]}, SCHEMA)
+
+
+def test_parse_rejects_bad_order_direction() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan({"order_by": [["amount", "sideways"]]}, SCHEMA)
+
+
+def test_parse_rejects_negative_limit() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan({"limit": -1}, SCHEMA)
+
+
+def test_parse_rejects_non_scalar_filter_value() -> None:
+    with pytest.raises(LLMError):
+        parse_query_plan(
+            {
+                "filters": [
+                    {"column": "amount", "operator": "=", "value": {"a": 1}}
+                ]
+            },
+            SCHEMA,
+        )
+
+
+def test_parse_injection_attempt_in_value_round_trips_safely() -> None:
+    """The parser accepts a hostile value — the DEFENSIVE step is that
+    ``quote_value`` escapes it into a safe literal and
+    ``_assert_select_only`` then passes."""
+    model = parse_query_plan(
+        {
+            "filters": [
+                {
+                    "column": "name",
+                    "operator": "=",
+                    "value": "'; DROP TABLE data;--",
+                }
+            ]
+        },
+        SCHEMA,
+    )
+    sql = model.to_sql()
+    # DROP must NOT appear as a bare token — it's inside a quoted literal.
+    assert sql.upper().startswith("SELECT")
+    # The escaped literal should contain doubled quotes.
+    assert "''; DROP TABLE data;--'" in sql
+
+
+# ---------------------------------------------------------------------------
+# Injectable client — no network
+# ---------------------------------------------------------------------------
+
+
+class _StubClient:
+    """Honours the ``OllamaClient.generate_json`` signature."""
+
+    def __init__(self, response: Dict[str, Any]) -> None:
+        self._response = response
+        self.calls: list = []
+
+    def generate_json(self, system: str, user: str) -> Dict[str, Any]:
+        self.calls.append((system, user))
+        return self._response
+
+
+def test_nl_to_query_model_with_stub_client() -> None:
+    stub = _StubClient(
+        {
+            "selected_columns": ["name"],
+            "filters": [
+                {"column": "country", "operator": "=", "value": "FI"}
+            ],
+            "limit": 5,
+        }
+    )
+    model = nl_to_query_model(
+        "show finnish names", SCHEMA, client=stub  # type: ignore[arg-type]
+    )
+    assert model.selected_columns == ["name"]
+    assert model.filters[0].column == "country"
+    assert model.limit == 5
+    assert len(stub.calls) == 1
+    # The stub received the schema listing and the user's request.
+    _system, user_prompt = stub.calls[0]
+    assert "country" in user_prompt
+    assert "show finnish names" in user_prompt
+
+
+def test_nl_to_query_model_rejects_empty_nl() -> None:
+    with pytest.raises(LLMError):
+        nl_to_query_model("   ", SCHEMA, client=_StubClient({}))  # type: ignore[arg-type]
+
+
+def test_nl_to_query_model_rejects_empty_schema() -> None:
+    with pytest.raises(LLMError):
+        nl_to_query_model("any", {}, client=_StubClient({}))  # type: ignore[arg-type]
+
+
+def test_ollama_client_constructs_without_network() -> None:
+    # Construction must not touch the network.
+    client = OllamaClient(host="http://localhost:11434", model="gemma3", timeout=5.0)
+    assert client.host == "http://localhost:11434"
+    assert client.model == "gemma3"
+    assert client.timeout == 5.0

@@ -4,10 +4,9 @@ app:
   max_preview_rows: 1000
 
 llm:
-  # Phase 3 — not used in Phase 1.
-  # Env vars override these at runtime.
-  # Pattern mirrors Alleyfoo/Support-triage-llm app/config.py
-  # (OLLAMA_HOST, MODEL_NAME, OLLAMA_TIMEOUT).
+  # Env vars override these at runtime:
+  #   OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_TIMEOUT
+  # Pattern mirrors Alleyfoo/Support-triage-llm app/config.py.
   provider: ollama
   model: gemma3
   host: http://localhost:11434

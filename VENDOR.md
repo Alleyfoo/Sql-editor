@@ -22,21 +22,29 @@ which permits redistribution with attribution.
 
 ## Patterns referenced but not vendored
 
-### Ollama env-var configuration — Support-triage-llm
+### Ollama client + env-var configuration — Support-triage-llm
 
 - Source repo: <https://github.com/Alleyfoo/Support-triage-llm>
 - Commit SHA:  `4ef43070ae40b9dffcccc11cd5756091dae46438`
-- Source path: `app/config.py` (lines 56–60)
+- Source paths:
+  - `app/slm_ollama.py` — stdlib-only `urllib.request` POST pattern to
+    `/api/chat` with `stream: false`.
+  - `app/config.py` (lines 56–60) — env-var layering
+    (`OLLAMA_HOST` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT`).
 
-The `OLLAMA_HOST` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT` env-var pattern is
-noted in `config.yaml` under the `llm:` section for Phase 3. No code is
-imported in Phase 1 because the LLM hook does not yet exist.
+Used as pattern references in Phase 3 `src/llm/natural_language.py`
+(`OllamaClient`, `load_llm_config`). No source file is copied — the
+Phase 3 module is rewritten to request Ollama's native `format: "json"`
+mode and to raise a typed `LLMError` rather than falling back to a stub.
 
 ### LLM output JSON validation — slm-cleanroom-demo
 
 - Source repo: <https://github.com/Alleyfoo/slm-cleanroom-demo>
 - Commit SHA:  `4fbcf845293d066a070326fc8ccdb8290e1fdda8`
 
-The idea of validating LLM output against a schema before executing will be
-reused in Phase 3 when the LLM natural-language hook is implemented. No code
-is vendored in Phase 1.
+The principle of validating LLM output against a known schema before
+executing is applied in `src/llm/natural_language.py::parse_query_plan`.
+We deliberately avoid adding a `pydantic` dependency — validation is
+~60 lines of hand-rolled checks against the active dataset schema and
+the same operator / function / direction allow-lists used by the visual
+composer. No code is vendored from this repo.

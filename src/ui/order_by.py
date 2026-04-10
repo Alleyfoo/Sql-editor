@@ -107,6 +107,24 @@ class OrderByRows(ttk.Frame):
         self._rows = []
         self._fire_change()
 
+    def set_order_by(self, entries: Sequence[Tuple[str, str]]) -> None:
+        """Replace all rows with the given (column, direction) pairs.
+
+        Used by the Phase 3 NL flow. Fires ``on_change`` exactly once at
+        the end so the SQL preview refreshes a single time.
+        """
+        for row in self._rows:
+            row.destroy()
+        self._rows = []
+        for col, direction in entries:
+            row = _OrderRow(self, self._rows_container)
+            row.column_var.set(col)
+            row.direction_var.set(
+                direction if direction in ORDER_DIRECTIONS else "ASC"
+            )
+            self._rows.append(row)
+        self._fire_change()
+
     def get_order_by(self) -> List[Tuple[str, str]]:
         out: List[Tuple[str, str]] = []
         for row in self._rows:

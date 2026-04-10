@@ -9,13 +9,14 @@ to your CSV and the SQLite database is in-memory and locked read-only.
 
 ## Status
 
-**Phase 2** — Phase 1 plus aggregation controls (`SUM` / `COUNT` / `AVG` /
-`MIN` / `MAX` / `COUNT DISTINCT`), `GROUP BY`, `HAVING` (reuses the filter
-composer, dropdown scoped to group columns and aggregation aliases),
-multi-column `ORDER BY` with `ASC` / `DESC`. `to_sql()` enforces the
-standard SQL rule that every non-aggregated column in the SELECT list
-must appear in GROUP BY when aggregations are present. LLM natural-language
-input (Phase 3) and multi-table JOINs (Phase 4) are not yet implemented.
+**Phase 3** — Phase 2 plus a natural-language input bar backed by a
+local Ollama model (default `gemma3`). The LLM **does not emit SQL**;
+it returns a JSON *query plan*, which is validated against the active
+dataset schema and converted to a `QueryModel` that passes through the
+same `to_sql()` → `_assert_select_only()` → executor blocklist as a
+hand-built query. Three layers of defense; the user always sees the
+generated SQL before clicking **Run**. Multi-table JOINs (Phase 4) are
+not yet implemented.
 
 ## Install
 
@@ -37,6 +38,25 @@ panel and add filters in the center panel, the generated SQL updates live in
 the right panel. Press **Run** to execute and see results in the table at
 the bottom, then **Export CSV…** to save them elsewhere.
 
+### Natural-language input
+
+The bar at the top of the window (**Ask in natural language**) sends
+your request to a local Ollama model and populates the visual composer
+with the result. The SQL preview updates so you can inspect it; clicking
+**Run** then executes the query as normal. The NL flow never auto-runs.
+
+Configure the Ollama endpoint in `config.yaml` or via environment
+variables (env vars win):
+
+| Variable          | Default                     |
+| ----------------- | --------------------------- |
+| `OLLAMA_HOST`     | `http://localhost:11434`    |
+| `OLLAMA_MODEL`    | `gemma3`                    |
+| `OLLAMA_TIMEOUT`  | `60` (seconds)              |
+
+Only the stdlib `urllib` is used — no extra dependency is added for the
+Ollama client.
+
 ## Safety
 
 This tool will never modify your data. The guarantees:
@@ -54,9 +74,18 @@ This tool will never modify your data. The guarantees:
    by the executor before it touches SQLite. The blocklist covers `DROP`,
    `DELETE`, `INSERT`, `UPDATE`, `ALTER`, `CREATE`, `ATTACH`, `DETACH`,
    `PRAGMA`, `REPLACE`, `TRUNCATE`, `EXEC`, `EXECUTE`, `GRANT`, `REVOKE`.
-4. **No raw-SQL input field.** Phase 1 has no place for the user to type
-   SQL — every query is built from widgets.
+4. **No raw-SQL input field.** There is no place for the user — or the
+   LLM — to type SQL. Every query is built from widgets or parsed from
+   a validated JSON query plan.
 5. **No database file written to disk.** The DB lives only in memory.
+6. **LLM output is treated as untrusted input.** The natural-language
+   flow asks Ollama to return a JSON query plan, not SQL. The plan is
+   validated against the active dataset schema and the same operator /
+   aggregation / order allow-lists the visual composer uses, converted
+   to a `QueryModel`, and then passes through `to_sql()` and the
+   executor blocklist exactly like a hand-built query. Column
+   hallucinations, bad operators, and injection attempts inside filter
+   values are all blocked before SQL is emitted.
 
 ## Testing
 
@@ -91,6 +120,8 @@ Sql-editor/
 │   ├── executor.py           # Read-only executor + keyword blocklist
 │   ├── history.py            # query_history.jsonl logger
 │   ├── config.py             # YAML config loader
+│   ├── llm/
+│   │   └── natural_language.py  # Ollama client + JSON → QueryModel parser
 │   └── ui/
 │       ├── query_builder.py  # Main window
 │       ├── filter_rows.py    # Dynamic filter composer (WHERE and HAVING)
@@ -123,7 +154,7 @@ See `VENDOR.md` for exact file-level attribution with commit SHAs.
   executor, results table, CSV export.
 - **Phase 2** ✓ — Aggregation (`SUM` / `COUNT` / `AVG` / `MIN` / `MAX` /
   `COUNT DISTINCT`), `GROUP BY`, `HAVING`, multi-column `ORDER BY`.
-- **Phase 3** — LLM natural-language input via Ollama (`gemma3`), emitting
-  a `QueryModel` (not raw SQL) that passes through the same validator
-  before execution.
+- **Phase 3** ✓ — LLM natural-language input via Ollama (`gemma3`),
+  emitting a `QueryModel` (not raw SQL) that passes through the same
+  validator and executor blocklist before execution.
 - **Phase 4** — Multi-CSV loading and a visual `JOIN` composer.
