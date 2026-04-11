@@ -1,0 +1,35 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrchestrationPlan",
+  "type": "object",
+  "required": ["task_class", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "task_class": {"type": "string", "enum": ["pushdown", "hybrid", "python_first", "cleaning_first", "follow_up", "adversarial"]},
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["worker_id", "input_handles", "params"],
+        "additionalProperties": false,
+        "properties": {
+          "worker_id": {"type": "string", "minLength": 1},
+          "input_handles": {"type": "array", "items": {"type": "string"}},
+          "params": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "question": {"type": "string"},
+              "expected_route_family": {"type": "string", "enum": ["pushdown", "hybrid_or_python", "cleaning_first"]},
+              "validator": {"type": "string"},
+              "reason": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "final_output_handle": {"type": ["string", "null"]},
+    "metadata": {"type": "object"}
+  }
+}

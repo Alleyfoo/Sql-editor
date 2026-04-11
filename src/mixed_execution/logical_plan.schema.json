@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LogicalPlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source",
+    "projection",
+    "filters",
+    "group_by",
+    "aggregates",
+    "order_by",
+    "post_processing",
+    "expected_output_schema"
+  ],
+  "properties": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["table_or_file"] },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "projection": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["column", "op"],
+        "properties": {
+          "column": { "type": "string", "minLength": 1 },
+          "op": {
+            "type": "string",
+            "enum": [
+              "=",
+              "!=",
+              "<",
+              ">",
+              "<=",
+              ">=",
+              "BETWEEN",
+              "LIKE",
+              "NOT LIKE",
+              "IS NULL",
+              "IS NOT NULL"
+            ]
+          },
+          "value": {}
+        }
+      }
+    },
+    "group_by": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "aggregates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fn", "column", "as"],
+        "properties": {
+          "fn": { "type": "string", "enum": ["count", "sum", "avg", "min", "max"] },
+          "column": { "type": "string", "minLength": 1 },
+          "as": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "order_by": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expr", "direction"],
+        "properties": {
+          "expr": { "type": "string", "minLength": 1 },
+          "direction": { "type": "string", "enum": ["asc", "desc"] }
+        }
+      }
+    },
+    "limit": { "type": ["integer", "null"], "minimum": 1 },
+    "post_processing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["rolling_mean", "percentile", "cumulative", "shape_repair", "date_alignment"]
+          }
+        }
+      }
+    },
+    "expected_output_schema": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["text", "numeric", "date", "integer", "float"] }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
+

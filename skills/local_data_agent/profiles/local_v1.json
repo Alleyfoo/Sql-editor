@@ -1,0 +1,83 @@
+{
+  "profile": "local_v1",
+  "version": "1.0.0",
+  "checkpoints": [
+    "data_intake",
+    "schema_and_question_alignment",
+    "operation_plan_validation",
+    "deterministic_execution",
+    "post_execution_sanity"
+  ],
+  "fallback_operation_id": "non_empty_result",
+  "routes": [
+    {
+      "pattern": "\\b(10|ten)\\s+strongest\\b.*\\bearthquake",
+      "operation_id": "usgs_top10_strongest"
+    },
+    {
+      "pattern": "\\baverage magnitude by magtype\\b",
+      "operation_id": "usgs_avg_magtype_top10"
+    },
+    {
+      "pattern": "\\bhow many earthquakes per day\\b.*\\blast 7 days\\b",
+      "operation_id": "usgs_count_per_day_last7"
+    },
+    {
+      "pattern": "\\b90th percentile\\b.*\\bmagnitude\\b",
+      "operation_id": "usgs_p90_magnitude"
+    },
+    {
+      "pattern": "\\b(7-day|7 day)\\b.*\\b(moving|rolling)\\b.*\\b(earthquake|daily)\\b",
+      "operation_id": "usgs_rolling7_daily_counts"
+    },
+    {
+      "pattern": "\\baverage temp[_\\s]?max by weather\\b",
+      "operation_id": "seattle_avg_tempmax_by_weather"
+    },
+    {
+      "pattern": "\\b(10|ten)\\s+wettest\\b",
+      "operation_id": "seattle_top10_wettest"
+    },
+    {
+      "pattern": "\\brain(y)? days per month\\b",
+      "operation_id": "seattle_rain_days_per_month"
+    },
+    {
+      "pattern": "\\b(30-day|30 day)\\b.*\\b(rolling|moving)\\b.*\\bprecipitation\\b",
+      "operation_id": "seattle_rolling30_precip"
+    },
+    {
+      "pattern": "\\b(5|five)\\s+busiest departure stations\\b",
+      "operation_id": "hsy_top5_busiest_departure"
+    },
+    {
+      "pattern": "\\b(10|ten)\\s+most common\\b.*\\broutes\\b",
+      "operation_id": "hsy_top10_common_routes"
+    },
+    {
+      "pattern": "\\blongest average trip distance\\b.*\\bat least 100 trips\\b",
+      "operation_id": "hsy_top10_dep_avg_distance_min100"
+    },
+    {
+      "pattern": "\\bhighest average covered distance\\b.*\\bat least 50 trips\\b",
+      "operation_id": "hsy_route_highest_avg_distance_min50"
+    },
+    {
+      "pattern": "\\bfor each departure hour\\b",
+      "operation_id": "hsy_trips_per_departure_hour"
+    },
+    {
+      "pattern": "\\bstart and end at the same station\\b|\\bdeparture station id equals return station id\\b",
+      "operation_id": "hsy_same_station_round_trips_count"
+    },
+    {
+      "pattern": "\\bmore departures than returns\\b",
+      "operation_id": "hsy_stations_more_departures_than_returns"
+    },
+    {
+      "pattern": "\\bpercentage of trips that return to the same station\\b",
+      "operation_id": "hsy_top10_same_station_percentage_min100_departures"
+    }
+  ]
+}
+

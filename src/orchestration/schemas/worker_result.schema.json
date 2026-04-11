@@ -1,0 +1,29 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkerResult",
+  "type": "object",
+  "required": ["ok", "worker_id", "output_handle", "bytes_materialized", "validation_result", "validation_scope", "schema_validation_result", "fallback_reason", "summary", "error"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {"type": "boolean"},
+    "worker_id": {"type": "string", "minLength": 1},
+    "output_handle": {"type": ["string", "null"]},
+    "bytes_materialized": {"type": "integer", "minimum": 0},
+    "validation_result": {"type": "boolean"},
+    "validation_scope": {"type": "string", "enum": ["contract", "validator", "policy"]},
+    "schema_validation_result": {"type": ["boolean", "null"]},
+    "fallback_reason": {"type": "string"},
+    "summary": {"type": "string"},
+    "error": {
+      "type": ["object", "null"],
+      "required": ["error_code", "message", "worker_id", "retryable"],
+      "additionalProperties": false,
+      "properties": {
+        "error_code": {"type": "string"},
+        "message": {"type": "string"},
+        "worker_id": {"type": "string"},
+        "retryable": {"type": "boolean"}
+      }
+    }
+  }
+}

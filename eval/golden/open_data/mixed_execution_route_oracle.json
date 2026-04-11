@@ -1,0 +1,112 @@
+[
+  {
+    "id": "usgs_top10_strongest",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 50000,
+      "max_rows_materialized": 25,
+      "max_bytes_fetched": 30000,
+      "max_peak_memory_mb": 1.0
+    }
+  },
+  {
+    "id": "usgs_avg_magtype_top10",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 50000,
+      "max_rows_materialized": 25,
+      "max_bytes_fetched": 30000,
+      "max_peak_memory_mb": 1.0
+    }
+  },
+  {
+    "id": "usgs_count_per_day_last7",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 50000,
+      "max_rows_materialized": 15,
+      "max_bytes_fetched": 20000,
+      "max_peak_memory_mb": 1.0
+    }
+  },
+  {
+    "id": "usgs_p90_magnitude",
+    "expected_route_family": "hybrid_or_python",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 50000,
+      "max_rows_materialized": 12000,
+      "max_bytes_fetched": 1200000,
+      "max_peak_memory_mb": 8.0
+    }
+  },
+  {
+    "id": "usgs_rolling7_daily_counts",
+    "expected_route_family": "hybrid_or_python",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 50000,
+      "max_rows_materialized": 40,
+      "max_bytes_fetched": 120000,
+      "max_peak_memory_mb": 2.0
+    }
+  },
+  {
+    "id": "seattle_avg_tempmax_by_weather",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 10000,
+      "max_rows_materialized": 20,
+      "max_bytes_fetched": 20000,
+      "max_peak_memory_mb": 1.0
+    }
+  },
+  {
+    "id": "seattle_top10_wettest",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 10000,
+      "max_rows_materialized": 25,
+      "max_bytes_fetched": 20000,
+      "max_peak_memory_mb": 1.0
+    }
+  },
+  {
+    "id": "seattle_rain_days_per_month",
+    "expected_route_family": "pushdown",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 10000,
+      "max_rows_materialized": 700,
+      "max_bytes_fetched": 80000,
+      "max_peak_memory_mb": 2.0
+    }
+  },
+  {
+    "id": "seattle_rolling30_precip",
+    "expected_route_family": "hybrid_or_python",
+    "header_confidence": 1.0,
+    "payload_budget": {
+      "max_rows_scanned": 10000,
+      "max_rows_materialized": 2000,
+      "max_bytes_fetched": 300000,
+      "max_peak_memory_mb": 4.0
+    }
+  },
+  {
+    "id": "seattle_top10_wettest_cleaning_first",
+    "expected_route_family": "cleaning_first",
+    "header_confidence": 0.5,
+    "payload_budget": {
+      "max_rows_scanned": 10000,
+      "max_rows_materialized": 25,
+      "max_bytes_fetched": 20000,
+      "max_peak_memory_mb": 1.0
+    }
+  }
+]

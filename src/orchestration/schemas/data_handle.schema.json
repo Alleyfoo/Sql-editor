@@ -1,0 +1,15 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataHandle",
+  "type": "object",
+  "required": ["handle_id", "handle_type", "source_id", "rows_estimate", "bytes_estimate", "metadata"],
+  "additionalProperties": false,
+  "properties": {
+    "handle_id": {"type": "string", "pattern": "^hdl_[a-f0-9]{12}$"},
+    "handle_type": {"type": "string", "enum": ["source", "cleaned_source", "result_table", "summary", "error"]},
+    "source_id": {"type": "string", "minLength": 1},
+    "rows_estimate": {"type": "integer", "minimum": 0},
+    "bytes_estimate": {"type": "integer", "minimum": 0},
+    "metadata": {"type": "object"}
+  }
+}

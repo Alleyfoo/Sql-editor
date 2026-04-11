@@ -1,0 +1,16 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TypedErrorResult",
+  "type": "object",
+  "required": ["error_code", "message", "worker_id", "retryable"],
+  "additionalProperties": false,
+  "properties": {
+    "error_code": {
+      "type": "string",
+      "enum": ["invalid_plan", "invalid_handle", "safety_violation", "worker_failed", "unsupported_request"]
+    },
+    "message": {"type": "string", "minLength": 1},
+    "worker_id": {"type": "string", "minLength": 1},
+    "retryable": {"type": "boolean"}
+  }
+}
