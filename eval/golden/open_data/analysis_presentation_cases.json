@@ -1,0 +1,260 @@
+[
+  {
+    "id": "pres_trend_usgs_daily_1",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Create a concise trend narrative of quake_count over time and recommend one chart.",
+    "session_id": "pres_a",
+    "followup_from": null,
+    "expected_family": "trend",
+    "expected_focus_fields": [
+      "day",
+      "quake_count"
+    ],
+    "expected_chart_types": [
+      "line"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_kpi_seattle_monthly_1",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Provide an executive KPI summary for monthly precipitation and rain_days.",
+    "session_id": "pres_b",
+    "followup_from": null,
+    "expected_family": "kpi_summary",
+    "expected_focus_fields": [
+      "precipitation_sum",
+      "rain_days"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_segment_usgs_magtype_1",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "Compare magType segments by event_count and suggest an appropriate chart.",
+    "session_id": "pres_c",
+    "followup_from": null,
+    "expected_family": "segment_comparison",
+    "expected_focus_fields": [
+      "magType",
+      "event_count"
+    ],
+    "expected_chart_types": [
+      "bar"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_dashboard_seattle_1",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Design a dashboard for monthly Seattle weather KPIs with one KPI card and one chart.",
+    "session_id": "pres_d",
+    "followup_from": null,
+    "expected_family": "dashboard_design",
+    "expected_focus_fields": [
+      "month",
+      "precipitation_sum",
+      "temp_max_avg"
+    ],
+    "expected_chart_types": [
+      "line",
+      "bar"
+    ],
+    "require_chart": true,
+    "require_dashboard": true
+  },
+  {
+    "id": "pres_dashboard_usgs_1",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Create a dashboard concept for daily quake_count and avg_mag.",
+    "session_id": "pres_e",
+    "followup_from": null,
+    "expected_family": "dashboard_design",
+    "expected_focus_fields": [
+      "day",
+      "quake_count",
+      "avg_mag"
+    ],
+    "expected_chart_types": [
+      "line"
+    ],
+    "require_chart": true,
+    "require_dashboard": true
+  },
+  {
+    "id": "pres_guardrail_1",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Explain the causal drivers behind quake_count increases and present a persuasive narrative.",
+    "session_id": "pres_f",
+    "followup_from": null,
+    "expected_family": "guardrail",
+    "expected_focus_fields": [
+      "quake_count"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_follow_seed_1",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Compare weather segments by precipitation_avg and summarize the top segment.",
+    "session_id": "pres_g",
+    "followup_from": null,
+    "expected_family": "segment_comparison",
+    "expected_focus_fields": [
+      "weather",
+      "precipitation_avg"
+    ],
+    "expected_chart_types": [
+      "bar"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_follow_1",
+    "handle_id": "distilled_seattle_segment",
+    "question": "From that previous analysis, refine the summary for a city leadership audience.",
+    "session_id": "pres_g",
+    "followup_from": "pres_follow_seed_1",
+    "expected_family": "follow_up_analysis",
+    "expected_focus_fields": [
+      "weather",
+      "precipitation_avg"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_follow_2",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Use the same prior analysis and suggest one optional chart caption.",
+    "session_id": "pres_g",
+    "followup_from": "pres_follow_1",
+    "expected_family": "follow_up_analysis",
+    "expected_focus_fields": [
+      "weather",
+      "precipitation_avg"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_trend_recent14_1",
+    "handle_id": "distilled_usgs_recent14",
+    "question": "Provide a trend summary of avg_mag during the recent 14-day window.",
+    "session_id": "pres_h",
+    "followup_from": null,
+    "expected_family": "trend",
+    "expected_focus_fields": [
+      "day",
+      "avg_mag"
+    ],
+    "expected_chart_types": [
+      "line"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_monthly_instead_seed",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Show the daily trend of quake_count over time.",
+    "session_id": "pres_followup_m",
+    "followup_from": null,
+    "expected_family": "trend",
+    "expected_focus_fields": [
+      "day",
+      "quake_count"
+    ],
+    "expected_chart_types": [
+      "line"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_monthly_instead",
+    "handle_id": "distilled_usgs_daily",
+    "question": "From that trend, can we see this monthly instead?",
+    "session_id": "pres_followup_m",
+    "followup_from": "pres_followup_monthly_instead_seed",
+    "expected_family": "follow_up_analysis",
+    "expected_focus_fields": [
+      "quake_count"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_zoom_spike_seed",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Analyze the daily trend in avg_mag over the recent window.",
+    "session_id": "pres_followup_z",
+    "followup_from": null,
+    "expected_family": "trend",
+    "expected_focus_fields": [
+      "day",
+      "avg_mag"
+    ],
+    "expected_chart_types": [
+      "line"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_zoom_spike",
+    "handle_id": "distilled_usgs_daily",
+    "question": "From that analysis, zoom into the spike — what happened during the peak day?",
+    "session_id": "pres_followup_z",
+    "followup_from": "pres_followup_zoom_spike_seed",
+    "expected_family": "follow_up_analysis",
+    "expected_focus_fields": [
+      "avg_mag"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_compare_top3_seed",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "Compare magType segments by event_count.",
+    "session_id": "pres_followup_t",
+    "followup_from": null,
+    "expected_family": "segment_comparison",
+    "expected_focus_fields": [
+      "magType",
+      "event_count"
+    ],
+    "expected_chart_types": [
+      "bar"
+    ],
+    "require_chart": true,
+    "require_dashboard": false
+  },
+  {
+    "id": "pres_followup_compare_top3",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "From that previous analysis, compare only the top 3 periods by event_count.",
+    "session_id": "pres_followup_t",
+    "followup_from": "pres_followup_compare_top3_seed",
+    "expected_family": "follow_up_analysis",
+    "expected_focus_fields": [
+      "magType",
+      "event_count"
+    ],
+    "expected_chart_types": [],
+    "require_chart": false,
+    "require_dashboard": false
+  }
+]

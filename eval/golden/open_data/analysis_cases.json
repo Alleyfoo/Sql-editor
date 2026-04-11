@@ -1,0 +1,276 @@
+[
+  {
+    "id": "kpi_1_seattle_monthly",
+    "family": "kpi_summary",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Give a KPI summary of monthly precipitation and temperature.",
+    "session_id": "kpi_a",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "kpi_2_usgs_daily",
+    "family": "kpi_summary",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Summarize the key KPI values for quake_count and average magnitude.",
+    "session_id": "kpi_b",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "kpi_3_usgs_magtype",
+    "family": "kpi_summary",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "Provide a KPI snapshot for event_count by magType.",
+    "session_id": "kpi_c",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "kpi_4_seattle_segment",
+    "family": "kpi_summary",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Create a concise KPI summary of weather segment stats.",
+    "session_id": "kpi_d",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "trend_1_usgs_daily",
+    "family": "trend",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Show trend of quake_count over time.",
+    "session_id": "trend_a",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "trend_2_usgs_recent14",
+    "family": "trend",
+    "handle_id": "distilled_usgs_recent14",
+    "question": "Analyze the daily trend in avg_mag over the recent window.",
+    "session_id": "trend_b",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "trend_3_seattle_monthly",
+    "family": "trend",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "What trend do we see over time for precipitation_sum?",
+    "session_id": "trend_c",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "trend_4_seattle_monthly",
+    "family": "trend",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Give monthly trend of temp_max_avg.",
+    "session_id": "trend_d",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "segment_1_usgs_magtype",
+    "family": "segment_comparison",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "Compare segments by magType using event_count.",
+    "session_id": "seg_a",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "segment_2_seattle_segment",
+    "family": "segment_comparison",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Compare weather segments by precipitation_avg.",
+    "session_id": "seg_b",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "segment_3_seattle_segment",
+    "family": "segment_comparison",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Which segment has the highest temp_max_avg?",
+    "session_id": "seg_c",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "segment_4_usgs_magtype",
+    "family": "segment_comparison",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "Segment comparison for avg_mag by magType.",
+    "session_id": "seg_d",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "dashboard_1_monthly",
+    "family": "dashboard_design",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Design a dashboard for monthly Seattle KPIs.",
+    "session_id": "dash_a",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "dashboard_2_usgs",
+    "family": "dashboard_design",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Create a dashboard for daily earthquake KPIs.",
+    "session_id": "dash_b",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "dashboard_3_segment",
+    "family": "dashboard_design",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Build a dashboard design for weather segment comparison.",
+    "session_id": "dash_c",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_seed_1",
+    "family": "kpi_summary",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Give a KPI summary for daily quake_count.",
+    "session_id": "follow_a",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_1",
+    "family": "follow_up_analysis",
+    "handle_id": "distilled_usgs_daily",
+    "question": "From that previous analysis, what is the key takeaway?",
+    "session_id": "follow_a",
+    "followup_from": "follow_seed_1",
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_2",
+    "family": "follow_up_analysis",
+    "handle_id": "distilled_usgs_daily",
+    "question": "From the same analysis, summarize again for me.",
+    "session_id": "follow_a",
+    "followup_from": "follow_1",
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_seed_2",
+    "family": "trend",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Show trend of precipitation_sum over time.",
+    "session_id": "follow_b",
+    "followup_from": null,
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_3",
+    "family": "follow_up_analysis",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "From that trend analysis, what stands out?",
+    "session_id": "follow_b",
+    "followup_from": "follow_seed_2",
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_4",
+    "family": "follow_up_analysis",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Use the previous result and explain briefly.",
+    "session_id": "follow_b",
+    "followup_from": "follow_3",
+    "expect_guardrail": false
+  },
+  {
+    "id": "follow_5",
+    "family": "follow_up_analysis",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "From that same prior analysis, what is one KPI?",
+    "session_id": "follow_b",
+    "followup_from": "follow_4",
+    "expect_guardrail": false
+  },
+  {
+    "id": "guardrail_1",
+    "family": "guardrail",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Why did quake_count increase? Give the causal drivers.",
+    "session_id": "guard_a",
+    "followup_from": null,
+    "expect_guardrail": true
+  },
+  {
+    "id": "guardrail_2",
+    "family": "guardrail",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Explain the root cause for precipitation changes month to month.",
+    "session_id": "guard_b",
+    "followup_from": null,
+    "expect_guardrail": true
+  },
+  {
+    "id": "weak_evidence_1",
+    "family": "guardrail",
+    "handle_id": "distilled_seattle_segment",
+    "question": "Why does humidity variance drive temp_max_avg differences?",
+    "session_id": "guard_c",
+    "followup_from": null,
+    "expect_guardrail": true
+  },
+  {
+    "id": "weak_evidence_2",
+    "family": "guardrail",
+    "handle_id": "distilled_usgs_magtype",
+    "question": "What causes magType shifts according to this table?",
+    "session_id": "guard_d",
+    "followup_from": null,
+    "expect_guardrail": true
+  },
+  {
+    "id": "weak_evidence_low_confidence",
+    "family": "guardrail",
+    "handle_id": "distilled_seattle_segment",
+    "question": "There might be a slight pattern in precipitation_avg — what does the data suggest?",
+    "session_id": "guard_e",
+    "followup_from": null,
+    "expect_guardrail": true,
+    "notes": "Benchmark: vague hedged question should trigger guardrail; weak-evidence check must flag confidence below 0.5"
+  },
+  {
+    "id": "bad_chart_bar_timeseries",
+    "family": "trend",
+    "handle_id": "distilled_usgs_daily",
+    "question": "Show the daily quake_count trend using a bar chart.",
+    "session_id": "chart_bad_a",
+    "followup_from": null,
+    "expect_guardrail": false,
+    "notes": "Benchmark: explicit bar-chart request for time-series data; chart-type guardrail must fire"
+  },
+  {
+    "id": "bad_chart_scatter_trend",
+    "family": "trend",
+    "handle_id": "distilled_seattle_monthly",
+    "question": "Display the monthly precipitation_sum trend as a scatter plot.",
+    "session_id": "chart_bad_b",
+    "followup_from": null,
+    "expect_guardrail": false,
+    "notes": "Benchmark: scatter requested for ordered time axis; chart-type guardrail must fire"
+  },
+  {
+    "id": "causal_language_in_descriptive",
+    "family": "guardrail",
+    "handle_id": "distilled_usgs_daily",
+    "question": "The data shows that quake_count increases drive avg_mag upward. Summarize this.",
+    "session_id": "guard_f",
+    "followup_from": null,
+    "expect_guardrail": true,
+    "notes": "Benchmark: causal language embedded in descriptive framing; causal-language guardrail must fire"
+  }
+]
