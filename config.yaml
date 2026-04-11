@@ -8,7 +8,7 @@ llm:
   #   OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_TIMEOUT
   # Pattern mirrors Alleyfoo/Support-triage-llm app/config.py.
   provider: ollama
-  model: gemma4
+  model: gemma4:latest
   host: http://localhost:11434
   timeout: 120
   # Number of prior Q/A turns to include as context in each prompt.

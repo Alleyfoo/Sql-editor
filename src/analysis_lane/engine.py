@@ -1,12 +1,15 @@
 ﻿from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from ..llm.natural_language import LLMConfig, LLMError, OllamaClient, load_llm_config
+from ..llm.result_analysis import AnalysisError, analyze_result_with_llm, fallback_result_analysis
 from .models import (
     AnalysisPlan,
     AnalysisProfile,
@@ -111,9 +114,37 @@ def load_distilled_handles(path: Path) -> Dict[str, DistilledHandle]:
     return out
 
 
+_log = logging.getLogger(__name__)
+
+
 class AnalysisCoordinator:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        llm_client: Optional[OllamaClient] = None,
+        llm_config: Optional[LLMConfig] = None,
+    ) -> None:
         self.store = AnalysisHandleStore()
+        self._llm_client = llm_client
+        self._llm_config = llm_config
+
+    def _get_llm_client(self) -> OllamaClient:
+        if self._llm_client is not None:
+            return self._llm_client
+        cfg = self._llm_config or self._load_config()
+        return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
+
+    @staticmethod
+    def _load_config() -> LLMConfig:
+        """Load config.yaml from the repo root, falling back to defaults."""
+        try:
+            import yaml  # type: ignore
+            config_path = Path(__file__).resolve().parents[2] / "config.yaml"
+            if config_path.exists():
+                raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+                return load_llm_config(raw if isinstance(raw, dict) else {})
+        except Exception:
+            pass
+        return load_llm_config({})
 
     def profiling_worker(self, distilled_df: pd.DataFrame, schema: Dict[str, str]) -> Tuple[AnalysisProfile, str, int, bool]:
         profile = build_analysis_profile(distilled_df, schema)
@@ -158,7 +189,7 @@ class AnalysisCoordinator:
         )
 
         charts = self._build_chart_specs(plan, distilled_df)
-        report = self._build_insight_report(plan, distilled_df, prior_analysis_handle)
+        report = self._llm_insight_worker(plan, distilled_df, prior_analysis_handle)
         dashboard = self._build_dashboard(plan, charts)
 
         payload = {
@@ -460,6 +491,80 @@ class AnalysisCoordinator:
         for i, chart in enumerate(charts):
             tiles.append(DashboardTile(kind="chart", title=chart.title, metric=None, chart_ref=i))
         return DashboardSpec(title="Distilled Data Dashboard", tiles=tiles)
+
+    def _llm_insight_worker(
+        self,
+        plan: AnalysisPlan,
+        df: pd.DataFrame,
+        prior_analysis_handle: Optional[str],
+    ) -> InsightReport:
+        """Call Ollama/gemma4 for insight generation; fall back to heuristics on error."""
+        # Build a minimal pseudo-SQL description so result_analysis prompt makes sense
+        metrics_str = ", ".join(plan.selected_metrics) if plan.selected_metrics else "*"
+        dim_str = plan.selected_dimensions[0] if plan.selected_dimensions else None
+        pseudo_sql = f"SELECT {metrics_str}" + (f", {dim_str}" if dim_str else "")
+        if plan.time_dimension:
+            pseudo_sql += f" FROM distilled ORDER BY {plan.time_dimension}"
+        schema = {col: ("date" if col == plan.time_dimension else "numeric") for col in df.columns}
+
+        try:
+            client = self._get_llm_client()
+            result = analyze_result_with_llm(
+                question=plan.question,
+                sql=pseudo_sql,
+                df=df,
+                schema=schema,
+                client=client,
+            )
+            llm_used = True
+        except (LLMError, AnalysisError) as exc:
+            _log.warning("LLM insight worker failed (%s); using heuristic fallback", exc)
+            result = fallback_result_analysis(plan.question, pseudo_sql, df)
+            llm_used = False
+
+        # Convert ResultAnalysis → InsightReport using the plan's field constraints
+        blocked: List[str] = []
+        if plan.family == "guardrail":
+            blocked.append("Causal/explanatory claims are blocked without explicit evidence contract")
+
+        insights: List[Insight] = []
+        evidence_fields = [
+            f for f in (plan.selected_metrics + plan.selected_dimensions)
+            if f in df.columns
+        ] or ([str(df.columns[0])] if len(df.columns) else [])
+
+        # Primary insight from LLM summary
+        if result.summary:
+            insights.append(
+                Insight(
+                    claim=result.summary,
+                    claim_strength="descriptive",
+                    confidence=0.8 if llm_used else 0.7,
+                    evidence_fields=evidence_fields,
+                    evidence_values={"llm_generated": llm_used},
+                    grounded=True,
+                )
+            )
+
+        # Additional insights from LLM insights list
+        for extra in result.insights:
+            insights.append(
+                Insight(
+                    claim=extra,
+                    claim_strength="descriptive",
+                    confidence=0.75 if llm_used else 0.65,
+                    evidence_fields=evidence_fields,
+                    evidence_values={"llm_generated": llm_used},
+                    grounded=True,
+                )
+            )
+
+        # Surface LLM warnings as blocked claims
+        for w in result.warnings:
+            blocked.append(w)
+
+        summary = result.summary if result.summary else "No insight available"
+        return InsightReport(summary=summary, insights=insights, blocked_claims=blocked)
 
     def _build_insight_report(self, plan: AnalysisPlan, df: pd.DataFrame, prior_analysis_handle: Optional[str]) -> InsightReport:
         blocked: List[str] = []
