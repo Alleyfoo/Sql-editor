@@ -201,17 +201,18 @@ def _render_recent_runs() -> None:
             pass
     entries = list(reversed(entries[-8:]))
 
+    items_html = ""
     for entry in entries:
         sql_short = entry.get("sql", "")[:60].replace("\n", " ")
         if len(entry.get("sql", "")) > 60:
             sql_short += "…"
         rows = entry.get("rows", "?")
         ts = entry.get("ts", "")[:16].replace("T", " ")
-        st.markdown(
-            f'<div style="padding:5px 0;border-bottom:1px solid #E4DFD2;font-size:12px;">'
+        items_html += (
+            f'<div style="padding:6px 0;border-bottom:1px solid #E4DFD2;">'
             f'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;'
-            f'color:#57514A;margin-bottom:2px;">{sql_short}</div>'
-            f'<div style="color:#8E867B;">{ts} &nbsp;·&nbsp; {rows} rows</div>'
-            f'</div>',
-            unsafe_allow_html=True,
+            f'color:#57514A;margin-bottom:3px;word-break:break-word;">{sql_short}</div>'
+            f'<div style="font-size:11px;color:#8E867B;">{ts} &nbsp;·&nbsp; {rows} rows</div>'
+            f'</div>'
         )
+    st.markdown(items_html, unsafe_allow_html=True)
