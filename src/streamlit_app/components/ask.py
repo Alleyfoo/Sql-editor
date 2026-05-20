@@ -179,8 +179,9 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
 
     state.append_transcript({"role": "user", "text": text})
 
-    # Heuristic fast-path before LLM.
-    probe = probe_ollama()
+    # Heuristic fast-path before LLM.  Force a fresh probe on each Ask
+    # so the status pill reflects current Ollama state, not a stale cache.
+    probe = probe_ollama(force=True)
     fast_path = parse_heuristic(text, schema)
     if fast_path.parsed and fast_path.confidence >= HEURISTIC_FAST_PATH_THRESHOLD:
         _apply_heuristic_result(
@@ -193,13 +194,16 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
             return
 
     try:
-        load_config()
+        from src.llm.natural_language import load_llm_config
+        cfg_data = load_config()
+        llm_cfg = load_llm_config(cfg_data)
         with st.spinner("Thinking…"):
             result_model = nl_to_query_model(
                 text,
                 schema,
                 selected_columns=list(model.selected_columns),
                 history=history,
+                config=llm_cfg,
             )
     except RouteToPythonError as exc:
         state.append_transcript(
