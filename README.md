@@ -42,10 +42,10 @@ a separate package (e.g. `sudo apt install python3-tk`).
 python main.py
 ```
 
-Then **File â†’ Open CSVâ€¦** to load a file. As you click columns in the left
+Then **File → Open CSV…** to load a file. As you click columns in the left
 panel and add filters in the center panel, the generated SQL updates live in
 the right panel. Press **Run** to execute and see results in the table at
-the bottom, then **Export CSVâ€¦** to save them elsewhere.
+the bottom, then **Export CSV…** to save them elsewhere.
 
 ### Natural-language input
 
@@ -56,7 +56,7 @@ with the result. The SQL preview updates so you can inspect it; clicking
 
 Use **Ask + Analyze** for the agent flow:
 
-1. NL -> JSON plan -> SQL
+1. NL → JSON plan → SQL
 2. Execute SQL
 3. Return a concise analysis block (summary, key insights, follow-up questions)
 
@@ -72,7 +72,7 @@ variables (env vars win):
 | `OLLAMA_MODEL`    | `gemma3`                    |
 | `OLLAMA_TIMEOUT`  | `60` (seconds)              |
 
-Only the stdlib `urllib` is used â€” no extra dependency is added for the
+Only the stdlib `urllib` is used — no extra dependency is added for the
 Ollama client.
 
 ## Safety
@@ -92,8 +92,8 @@ This tool will never modify your data. The guarantees:
    by the executor before it touches SQLite. The blocklist covers `DROP`,
    `DELETE`, `INSERT`, `UPDATE`, `ALTER`, `CREATE`, `ATTACH`, `DETACH`,
    `PRAGMA`, `REPLACE`, `TRUNCATE`, `EXEC`, `EXECUTE`, `GRANT`, `REVOKE`.
-4. **No raw-SQL input field.** There is no place for the user â€” or the
-   LLM â€” to type SQL. Every query is built from widgets or parsed from
+4. **No raw-SQL input field.** There is no place for the user — or the
+   LLM — to type SQL. Every query is built from widgets or parsed from
    a validated JSON query plan.
 5. **No database file written to disk.** The DB lives only in memory.
 6. **LLM output is treated as untrusted input.** The natural-language
@@ -118,7 +118,7 @@ ingestion including a live check that the returned connection rejects writes.
 ### Capability Spike Eval (Model Feasibility)
 
 Before building larger agent orchestration, run a capability spike to measure
-NL->JSON plan behavior against the current trust boundary:
+NL→JSON plan behavior against the current trust boundary:
 
 ```bash
 python eval/capability_eval.py --provider mock
@@ -153,7 +153,7 @@ symbols/units, multi-table previews, and mixed-language header text).
 
 ### Open-Data SQL vs Python-Fit Benchmark
 
-To benchmark where NL->SQL is reliable versus where requests drift into
+To benchmark where NL→SQL is reliable versus where requests drift into
 Python-style analytics (percentiles, rolling windows), run:
 
 ```bash
@@ -195,6 +195,26 @@ Run it with:
 python eval/open_data_sql_vs_python_eval.py --provider ollama --model gemma4 --cases eval/golden/open_data/hsy_2021_04_eval_pack.json
 ```
 
+### Helsinki Yearbook Analysis Pack (2024)
+
+A Helsinki Statistical Yearbook analysis test pack is available at:
+
+- `data/open_data/helsinki_yearbook_2024_analysis_test_set.json`
+- `data/open_data/helsinki_yearbook_2024_analysis_test_set.md`
+
+To split it into benchmark difficulty subsets:
+
+```bash
+python eval/helsinki_yearbook_pack_tools.py
+```
+
+Generated files:
+
+- `eval/golden/open_data/helsinki_yearbook_2024_analysis_easy.json`
+- `eval/golden/open_data/helsinki_yearbook_2024_analysis_mid.json`
+- `eval/golden/open_data/helsinki_yearbook_2024_analysis_hard.json`
+- `eval/golden/open_data/helsinki_yearbook_2024_analysis_split_summary.md`
+
 ### Open-Data Tri-Arm Benchmark (SQL vs Python vs Agent+Skills)
 
 To compare all three execution styles on the same case set, run:
@@ -224,7 +244,7 @@ Local skill profile files live in:
 
 The planner-first architecture benchmark runs:
 
-1. `NL -> typed LogicalPlan`
+1. `NL → typed LogicalPlan`
 2. deterministic routing (`pushdown|hybrid|python|cleaning_first`)
 3. routed execution
 4. mandatory output-schema validation/repair
@@ -307,7 +327,71 @@ Typed orchestration schemas:
 - `src/orchestration/schemas/worker_result.schema.json`
 - `src/orchestration/schemas/typed_error_result.schema.json`
 
-### Phase 0.5 Vertical Slice (PDF -> Query -> Network)
+### Analysis-Only Benchmark (Post-Distillation Lane)
+
+This lane starts from pre-produced distilled handles and evaluates analysis
+quality independently from extraction/mixed execution.
+Treat this as an orchestration + grounding benchmark, separate from
+numeric ground-truth packs (such as the Helsinki split).
+
+Run:
+
+```bash
+python eval/open_data_analysis_eval.py
+python eval/open_data_analysis_eval.py --cases eval/golden/open_data/analysis_cases.json --handles eval/golden/open_data/analysis_distilled_handles.json
+```
+
+Case families:
+
+- `kpi_summary`
+- `trend`
+- `segment_comparison`
+- `dashboard_design`
+- `follow_up_analysis`
+- `guardrail` / weak-evidence
+
+Analysis metrics:
+
+- `analysis_plan_valid`
+- `field_reference_valid`
+- `chart_spec_valid`
+- `insight_grounded`
+- `claim_strength_appropriate`
+- `followup_continuity_ok`
+- `render_success`
+
+Claim-strength policy:
+
+- descriptive claims are allowed
+- causal claims are blocked unless evidence contract explicitly allows them
+
+Typed analysis schemas:
+
+- `src/analysis_lane/schemas/analysis_profile.schema.json`
+- `src/analysis_lane/schemas/analysis_plan.schema.json`
+- `src/analysis_lane/schemas/chart_spec.schema.json`
+- `src/analysis_lane/schemas/dashboard_spec.schema.json`
+- `src/analysis_lane/schemas/insight_report.schema.json`
+
+### Presentation-Oriented Analysis Benchmark
+
+This benchmark is intentionally separate from numeric correctness packs and
+measures presentation behavior on distilled handles:
+
+- summary usefulness
+- chart choice appropriateness
+- dashboard layout coherence
+- grounding + claim-strength policy
+- follow-up continuity
+
+Run:
+
+```bash
+python eval/open_data_analysis_presentation_eval.py
+python eval/open_data_analysis_presentation_eval.py --cases eval/golden/open_data/analysis_presentation_cases.json --handles eval/golden/open_data/analysis_distilled_handles.json
+```
+
+### Phase 0.5 Vertical Slice (PDF → Query → Network)
 
 Place real PDFs in:
 
@@ -354,28 +438,28 @@ Successful queries are appended as JSON lines to
 
 ```
 Sql-editor/
-â”œâ”€â”€ main.py                   # Tkinter entry point
-â”œâ”€â”€ config.yaml               # App + LLM (Phase 3) settings
-â”œâ”€â”€ requirements.txt
-â”œâ”€â”€ VENDOR.md                 # Attribution for vendored legacy code
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ ingestion.py          # CSV â†’ pandas â†’ in-memory SQLite (read-only)
-â”‚   â”œâ”€â”€ query_model.py        # Pure data model; emits SELECT-only SQL
-â”‚   â”œâ”€â”€ executor.py           # Read-only executor + keyword blocklist
-â”‚   â”œâ”€â”€ history.py            # query_history.jsonl logger
-â”‚   â”œâ”€â”€ config.py             # YAML config loader
-â”‚   â”œâ”€â”€ llm/
-â”‚   â”‚   â””â”€â”€ natural_language.py  # Ollama client + JSON â†’ QueryModel parser
-â”‚   â””â”€â”€ ui/
-â”‚       â”œâ”€â”€ query_builder.py  # Main window
-â”‚       â”œâ”€â”€ filter_rows.py    # Dynamic filter composer (WHERE and HAVING)
-â”‚       â”œâ”€â”€ aggregation.py    # GROUP BY + aggregation rows
-â”‚       â”œâ”€â”€ order_by.py       # Multi-column ORDER BY composer
-â”‚       â”œâ”€â”€ sql_preview.py    # Read-only Text widget w/ keyword highlight
-â”‚       â””â”€â”€ results_table.py  # ttk.Treeview results widget
-â”œâ”€â”€ tests/                    # pytest suite
-â”œâ”€â”€ vendor/                   # Vendored legacy code (MIT, attributed)
-â””â”€â”€ artifacts/                # Runtime outputs (query history)
+├── main.py                   # Tkinter entry point
+├── config.yaml               # App + LLM (Phase 3) settings
+├── requirements.txt
+├── VENDOR.md                 # Attribution for vendored legacy code
+├── src/
+│   ├── ingestion.py          # CSV → pandas → in-memory SQLite (read-only)
+│   ├── query_model.py        # Pure data model; emits SELECT-only SQL
+│   ├── executor.py           # Read-only executor + keyword blocklist
+│   ├── history.py            # query_history.jsonl logger
+│   ├── config.py             # YAML config loader
+│   ├── llm/
+│   │   └── natural_language.py  # Ollama client + JSON → QueryModel parser
+│   └── ui/
+│       ├── query_builder.py  # Main window
+│       ├── filter_rows.py    # Dynamic filter composer (WHERE and HAVING)
+│       ├── aggregation.py    # GROUP BY + aggregation rows
+│       ├── order_by.py       # Multi-column ORDER BY composer
+│       ├── sql_preview.py    # Read-only Text widget w/ keyword highlight
+│       └── results_table.py  # ttk.Treeview results widget
+├── tests/                    # pytest suite
+├── vendor/                   # Vendored legacy code (MIT, attributed)
+└── artifacts/                # Runtime outputs (query history)
 ```
 
 ## Legacy Reuse
@@ -383,23 +467,22 @@ Sql-editor/
 This project reuses patterns and small code snippets from three earlier
 Alleyfoo projects:
 
-- [Alleyfoo/Data-tool-demo](https://github.com/Alleyfoo/Data-tool-demo) â€”
+- [Alleyfoo/Data-tool-demo](https://github.com/Alleyfoo/Data-tool-demo) —
   YAML config loader pattern (vendored in `vendor/data-tool-demo/`).
-- [Alleyfoo/Support-triage-llm](https://github.com/Alleyfoo/Support-triage-llm) â€”
+- [Alleyfoo/Support-triage-llm](https://github.com/Alleyfoo/Support-triage-llm) —
   Ollama env-var configuration pattern (referenced for Phase 3).
-- [Alleyfoo/slm-cleanroom-demo](https://github.com/Alleyfoo/slm-cleanroom-demo) â€”
+- [Alleyfoo/slm-cleanroom-demo](https://github.com/Alleyfoo/slm-cleanroom-demo) —
   JSON-schema validation for LLM output (referenced for Phase 3).
 
 See `VENDOR.md` for exact file-level attribution with commit SHAs.
 
 ## Roadmap
 
-- **Phase 1** âœ“ â€” Ingestion, field selection, filter composer, SQL preview,
+- **Phase 1** ✓ — Ingestion, field selection, filter composer, SQL preview,
   executor, results table, CSV export.
-- **Phase 2** âœ“ â€” Aggregation (`SUM` / `COUNT` / `AVG` / `MIN` / `MAX` /
+- **Phase 2** ✓ — Aggregation (`SUM` / `COUNT` / `AVG` / `MIN` / `MAX` /
   `COUNT DISTINCT`), `GROUP BY`, `HAVING`, multi-column `ORDER BY`.
-- **Phase 3** âœ“ â€” LLM natural-language input via Ollama (`gemma3`),
+- **Phase 3** ✓ — LLM natural-language input via Ollama (`gemma3`),
   emitting a `QueryModel` (not raw SQL) that passes through the same
   validator and executor blocklist before execution.
-- **Phase 4** â€” Multi-CSV loading and a visual `JOIN` composer.
-
+- **Phase 4** — Multi-CSV loading and a visual `JOIN` composer.
