@@ -81,7 +81,14 @@ def render() -> None:
                         st.markdown(reply)
                     if sql:
                         with st.expander("SQL", expanded=False):
-                            st.code(sql, language="sql")
+                            from src.streamlit_app.sql_highlight import render_sql_block
+                            st.markdown(
+                                f'<div style="background:var(--code-bg);border:1px solid #2a2520;'
+                                f'border-radius:var(--r-2);overflow:hidden;margin:2px 0 4px;">'
+                                f'{render_sql_block(sql)}'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
 
                 # Structured analysis takes priority; fall back to legacy LLM cards.
                 if det_analysis is not None and not det_analysis.is_empty:

@@ -58,7 +58,10 @@ def _section(num: int, title: str, summary: str = "",
              count: int | None = None, *, expanded: bool = True):
     glyph = _NUM_GLYPHS.get(num, str(num))
     count_part = f"  ·  `{count}`" if count is not None else ""
-    summary_part = f"   *{summary}*" if summary else ""
+    # Escape * so filter summaries like "col = *" don't break the italic span
+    safe = summary.replace("*", "·") if summary else ""
+    sep = "" if count is not None else "  ·  "
+    summary_part = f"{sep}*{safe}*" if safe else ""
     label = f"{glyph}  **{title}**{count_part}{summary_part}"
     return st.expander(label, expanded=expanded)
 
@@ -74,7 +77,7 @@ def _refresh_sql(model: QueryModel) -> None:
 
 def _select_section(schema, model: QueryModel, cols: List[str]) -> None:
     sel = list(model.selected_columns)
-    summary = ", ".join(sel[:3]) + ("…" if len(sel) > 3 else "") if sel else "all (*)"
+    summary = ", ".join(sel[:3]) + ("…" if len(sel) > 3 else "") if sel else "all columns"
 
     with _section(1, "SELECT", summary, expanded=True):
         new_sel = st.multiselect(
