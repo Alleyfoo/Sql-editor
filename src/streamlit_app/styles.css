@@ -125,6 +125,7 @@ button, input, select, textarea {
   background: #FDFCF8 !important;
   border-bottom: 1px solid var(--line-2) !important;
   margin: 0 !important;
+  align-items: center !important;
 }
 [data-testid="stHorizontalBlock"]:has(.cp-head-text) .stButton button {
   height: 28px !important;
@@ -132,11 +133,24 @@ button, input, select, textarea {
   padding: 0 10px !important;
   font-size: 12px !important;
 }
+/* Disabled Save button — looks intentional, not broken */
+.st-key-composer_panel [class*="st-key-cp_save"] button[disabled] {
+  background: transparent !important;
+  border: 1px dashed var(--line) !important;
+  color: var(--ink-4) !important;
+  font-style: italic !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+}
+.st-key-composer_panel [class*="st-key-cp_save"] button[disabled]:hover {
+  background: transparent !important;
+  border-color: var(--line) !important;
+}
 .cp-head-text {
   display: flex;
   gap: 12px;
   align-items: baseline;
-  padding-top: 4px;
+  padding-top: 0 !important;
 }
 .cp-title {
   font-weight: 600;
@@ -970,4 +984,51 @@ button, input, select, textarea {
   border-radius: var(--r-3) !important;
   border-color: var(--line) !important;
   background: var(--card) !important;
+}
+
+/* ── Composer subheadings (Group by / Aggregations) ─────────────────────── */
+.cs-subhead {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin: 4px 0 2px;
+}
+.st-key-composer_panel [data-testid="stMarkdown"]:has(.cs-subhead) {
+  margin: 0 !important;
+}
+
+/* IS NULL / IS NOT NULL value cell pill */
+.null-pill {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-1);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* Dashed separator line (ORDER BY / LIMIT divider) */
+hr.dashed-sep {
+  border: none;
+  border-top: 1px dashed var(--line);
+  margin: 8px 0 6px;
+}
+
+/* HAVING empty-state callout */
+.having-empty {
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-2);
+  font-size: 12px;
+  color: var(--ink-3);
+  font-style: italic;
+  text-align: center;
 }

@@ -163,7 +163,10 @@ def _filter_rows_ui(schema, cols, row_key: str, target_list: list) -> None:
         with c_val:
             if op in ("IS NULL", "IS NOT NULL"):
                 row["value"] = None
-                st.empty()
+                st.markdown(
+                    f'<div class="null-pill">{op.lower()}</div>',
+                    unsafe_allow_html=True,
+                )
             elif op == "BETWEEN":
                 lo, hi = st.columns(2)
                 lo_val = lo.text_input("lo", value=str(row.get("value_lo", "")),
@@ -239,11 +242,7 @@ def _group_agg_section(schema, model: QueryModel, cols: List[str]) -> None:
     )
 
     with _section(3, "GROUP BY · Aggregate", summary, count=n_total, expanded=False):
-        st.markdown(
-            '<div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;'
-            'letter-spacing:.08em;margin-bottom:5px;">Group by</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="cs-subhead">Group by</div>', unsafe_allow_html=True)
         new_grp = st.multiselect(
             "GROUP BY",
             options=cols,
@@ -257,11 +256,7 @@ def _group_agg_section(schema, model: QueryModel, cols: List[str]) -> None:
             _refresh_sql(model)
             st.rerun()
 
-        st.markdown(
-            '<div style="font-size:10.5px;color:var(--ink-3);text-transform:uppercase;'
-            'letter-spacing:.08em;margin-top:10px;margin-bottom:6px;">Aggregations</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<div class="cs-subhead">Aggregations</div>', unsafe_allow_html=True)
         to_remove = None
         for i, row in enumerate(agg_rows):
             c1, c2, c3, c4, c5 = st.columns([2, 4, 0.5, 4, 0.7], gap="small")
@@ -329,7 +324,10 @@ def _having_section(schema, model: QueryModel, cols: List[str]) -> None:
 
     with _section(4, "HAVING", summary, count=len(having_rows) or None, expanded=False):
         if not has_group:
-            st.caption("Add a GROUP BY column above to enable HAVING.")
+            st.markdown(
+                '<div class="having-empty">Add a GROUP BY column above to enable HAVING.</div>',
+                unsafe_allow_html=True,
+            )
         else:
             _filter_rows_ui(schema, cols, "having_rows", model.having)
 
@@ -381,10 +379,7 @@ def _order_limit_section(schema, model: QueryModel, cols: List[str]) -> None:
             st.session_state.order_rows = order_rows
             st.rerun()
 
-        st.markdown(
-            '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);"></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown('<hr class="dashed-sep" />', unsafe_allow_html=True)
         st.markdown(
             '<div style="display:flex;align-items:center;gap:8px;margin:6px 0 2px;">'
             '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
