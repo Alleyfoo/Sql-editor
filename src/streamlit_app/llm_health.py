@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -38,6 +38,7 @@ class ProbeResult:
     host: str
     model: str
     detail: str = ""
+    available_models: Tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -97,6 +98,8 @@ def _do_probe(cfg: LLMConfig) -> ProbeResult:
             if isinstance(name, str):
                 available.append(name)
 
+    models_tuple = tuple(available)
+
     if available and not any(
         name == cfg.model or name.startswith(cfg.model + ":") for name in available
     ):
@@ -106,9 +109,12 @@ def _do_probe(cfg: LLMConfig) -> ProbeResult:
             + ("…" if len(available) > 4 else "")
             + ")"
         )
-        return ProbeResult(status="offline", host=cfg.host, model=cfg.model, detail=detail)
+        return ProbeResult(
+            status="offline", host=cfg.host, model=cfg.model,
+            detail=detail, available_models=models_tuple,
+        )
 
-    return ProbeResult(status="ok", host=cfg.host, model=cfg.model)
+    return ProbeResult(status="ok", host=cfg.host, model=cfg.model, available_models=models_tuple)
 
 
 def probe_ollama(*, force: bool = False) -> ProbeResult:
