@@ -64,14 +64,15 @@ button, input, select, textarea {
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
   gap: 0.2rem !important;
 }
-/* Schema col rows: tighter than other sidebar elements */
-[data-testid="stSidebar"] .col-row + [data-testid="stHorizontalBlock"],
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(.col-row) {
-  gap: 0 !important;
+[data-testid="stSidebar"] hr {
+  margin: 8px 0 !important;
+}
+/* All sidebar horizontal blocks: checkbox aligns to top-of-name, not center */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
   align-items: flex-start !important;
 }
 [data-testid="stSidebar"] [data-testid="stCheckbox"] {
-  margin-top: 3px !important;
+  margin-top: 4px !important;
 }
 [data-testid="stSidebar"] [data-testid="stCheckbox"] label {
   padding: 0 !important;
@@ -101,11 +102,21 @@ button, input, select, textarea {
   overflow: hidden;
   margin-bottom: 8px;
 }
-.st-key-composer_panel [data-testid="stVerticalBlock"] {
+/* Top-level stack (header + expanders) share borders with no gap */
+.st-key-composer_panel > div > [data-testid="stVerticalBlock"] {
   gap: 0 !important;
+}
+/* Inside expander bodies: restore breathing room between rows */
+.st-key-composer_panel [data-testid="stExpanderDetails"] [data-testid="stVerticalBlock"] {
+  gap: 0.35rem !important;
 }
 .st-key-composer_panel [data-testid="stHorizontalBlock"] {
   gap: 0.4rem !important;
+}
+/* All cells in a filter/order/agg row share one vertical center line */
+.st-key-composer_panel [data-testid="stExpander"] [data-testid="stHorizontalBlock"],
+.st-key-composer_panel [data-testid="stExpanderDetails"] [data-testid="stHorizontalBlock"] {
+  align-items: center !important;
 }
 
 /* Header row — first horizontal block in the panel */
@@ -152,12 +163,40 @@ button, input, select, textarea {
 .st-key-composer_panel [data-testid="stExpander"] summary {
   padding: 8px 16px !important;
   font-family: "IBM Plex Sans", sans-serif !important;
-  font-size: 13px !important;
+  font-size: 12.5px !important;
   font-weight: 400 !important;
   color: var(--ink) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
 }
-/* Section title bold */
-.st-key-composer_panel [data-testid="stExpander"] summary strong {
+.st-key-composer_panel [data-testid="stExpander"] summary:hover {
+  background: rgba(0,0,0,0.02);
+}
+/* Hide the default chevron — section state is communicated by content */
+.st-key-composer_panel [data-testid="stExpander"] summary svg {
+  display: none !important;
+}
+/* Numeric badge — the **01** prefix, always first <strong> in summary */
+.st-key-composer_panel [data-testid="stExpander"] summary strong:first-of-type {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  background: var(--ink);
+  color: white;
+  border-radius: 4px;
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.02em;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+/* All subsequent strongs stay as plain bold text */
+.st-key-composer_panel [data-testid="stExpander"] summary strong:not(:first-of-type) {
   font-weight: 600 !important;
   color: var(--ink) !important;
   background: none !important;
@@ -178,12 +217,17 @@ button, input, select, textarea {
   border-radius: 999px !important;
   font-weight: 600 !important;
 }
-/* Summary text — italic in expander label */
+/* Summary hint text — truncated with ellipsis */
 .st-key-composer_panel [data-testid="stExpander"] summary em {
   font-style: normal !important;
   font-family: "IBM Plex Mono", monospace !important;
   font-size: 11px !important;
   color: var(--ink-3) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
 }
 .st-key-composer_panel [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
   padding: 4px 16px 14px !important;
@@ -192,13 +236,118 @@ button, input, select, textarea {
 
 /* WHERE / HAVING conjunction label */
 .conj-label {
+  height: 38px;
+  padding: 0 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
   display: flex;
   align-items: center;
-  height: 38px;
+  justify-content: center;
+  letter-spacing: 0.04em;
   font-size: 11px;
   font-weight: 600;
   font-family: "IBM Plex Mono", monospace;
   color: var(--ink-2);
+}
+
+/* AND/OR radio — compacted to 38px toggle strip */
+.st-key-composer_panel [data-testid="stRadio"] > div {
+  flex-direction: row !important;
+  gap: 0 !important;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  overflow: hidden;
+  height: 38px;
+}
+.st-key-composer_panel [data-testid="stRadio"] label {
+  margin: 0 !important;
+  padding: 0 10px !important;
+  height: 100%;
+  display: flex !important;
+  align-items: center;
+  border-right: 1px solid var(--line);
+  font-size: 11px !important;
+  font-family: "IBM Plex Mono", monospace !important;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.st-key-composer_panel [data-testid="stRadio"] label:last-child {
+  border-right: none;
+}
+.st-key-composer_panel [data-testid="stRadio"] label[data-checked="true"] {
+  background: var(--ink);
+  color: white;
+}
+.st-key-composer_panel [data-testid="stRadio"] input {
+  display: none !important;
+}
+.st-key-composer_panel [data-testid="stRadio"] label > div:first-child {
+  display: none !important;
+}
+
+/* All buttons inside expanders: normalize to 38px tall */
+.st-key-composer_panel [data-testid="stExpander"] .stButton button {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+/* × remove buttons — compact neutral square, hover-to-red */
+.st-key-composer_panel [class*="st-key-"][class*="_rm_"] button {
+  width: 38px !important;
+  min-width: 38px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink-3) !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+.st-key-composer_panel [class*="st-key-"][class*="_rm_"] button:hover {
+  border-color: var(--bad) !important;
+  color: var(--bad) !important;
+  background: var(--bad-soft) !important;
+}
+
+/* ＋ Add … buttons — ghost dashed pills */
+.st-key-composer_panel [class*="st-key-"][class*="_add"] button {
+  height: 30px !important;
+  min-height: 30px !important;
+  background: transparent !important;
+  border: 1px dashed var(--line) !important;
+  color: var(--ink-2) !important;
+  font-size: 12px !important;
+  padding: 0 12px !important;
+}
+.st-key-composer_panel [class*="st-key-"][class*="_add"] button:hover {
+  border-color: var(--accent) !important;
+  border-style: solid !important;
+  color: var(--accent-ink) !important;
+  background: var(--accent-soft) !important;
+}
+
+/* Aggregation → arrow (flex-centered, same height as selectboxes) */
+.agg-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  color: var(--ink-3);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+/* ── LIMIT number input ─────────────────────────────────────────────────── */
+.st-key-composer_panel [data-testid="stNumberInput"] {
+  max-width: 140px;
+}
+.st-key-composer_panel [data-testid="stNumberInput"] input {
+  height: 32px !important;
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 12px !important;
+}
+.st-key-composer_panel [data-testid="stNumberInput"] button {
+  display: none !important;
 }
 
 /* ── Multiselect pills (SELECT + GROUP BY) ──────────────────────────────── */
@@ -210,12 +359,27 @@ button, input, select, textarea {
   font-size: 12px !important;
   font-weight: 500 !important;
   font-family: "IBM Plex Sans", sans-serif !important;
+  padding: 0 4px 0 10px !important;
+  height: 24px !important;
+  line-height: 24px !important;
 }
 [data-baseweb="tag"] [role="button"] {
   color: #8E867B !important;
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  margin-left: 2px !important;
 }
 [data-baseweb="select"] {
   border-radius: var(--r-2) !important;
+  min-height: 38px !important;
+}
+[data-baseweb="select"] > div {
+  min-height: 38px !important;
+  padding: 2px 8px !important;
+}
+[data-baseweb="select"] * {
+  font-family: "IBM Plex Sans", sans-serif !important;
 }
 
 /* ── SQL panel (hand-rolled) ─────────────────────────────────────────────── */
@@ -428,7 +592,7 @@ button, input, select, textarea {
 
 /* Schema column rows */
 .col-row {
-  padding: 3px 4px;
+  padding: 0;
   border-radius: var(--r-1);
   margin-bottom: 1px;
 }
@@ -437,7 +601,8 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  line-height: 1.4;
+  line-height: 1.6;
+  min-height: 20px;
 }
 .col-row .col-name {
   font-size: 12px;
@@ -458,6 +623,8 @@ button, input, select, textarea {
   border-radius: 3px;
   font-weight: 500;
   flex-shrink: 0;
+  min-width: 34px;
+  text-align: center;
 }
 .type-num  { background: var(--info-soft); color: var(--info); }
 .type-text { background: var(--good-soft); color: var(--good); }
@@ -469,8 +636,7 @@ button, input, select, textarea {
   grid-template-columns: auto auto 1fr;
   gap: 0 8px;
   align-items: center;
-  margin-top: 3px;
-  margin-left: 18px;
+  margin-top: 2px;
   font-size: 10.5px;
   color: var(--ink-3);
 }

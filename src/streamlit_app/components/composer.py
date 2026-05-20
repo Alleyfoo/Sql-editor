@@ -12,9 +12,6 @@ from src.query_model import (
     QueryModel,
 )
 
-_NUM_GLYPHS = {1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤"}
-
-
 def render() -> None:
     if not st.session_state.get("schema"):
         st.info("Open a CSV file to start composing a query.")
@@ -56,13 +53,13 @@ def render() -> None:
 
 def _section(num: int, title: str, summary: str = "",
              count: int | None = None, *, expanded: bool = True):
-    glyph = _NUM_GLYPHS.get(num, str(num))
     count_part = f"  ·  `{count}`" if count is not None else ""
-    # Escape * so filter summaries like "col = *" don't break the italic span
     safe = summary.replace("*", "·") if summary else ""
+    if safe and len(safe) > 60:
+        safe = safe[:57] + "…"
     sep = "" if count is not None else "  ·  "
     summary_part = f"{sep}*{safe}*" if safe else ""
-    label = f"{glyph}  **{title}**{count_part}{summary_part}"
+    label = f"**{num:02d}**  {title}{count_part}{summary_part}"
     return st.expander(label, expanded=expanded)
 
 
@@ -289,10 +286,7 @@ def _group_agg_section(schema, model: QueryModel, cols: List[str]) -> None:
                 )
                 row["col"] = col_val
             with c3:
-                st.markdown(
-                    '<div style="text-align:center;padding-top:8px;color:var(--ink-3);">→</div>',
-                    unsafe_allow_html=True,
-                )
+                st.markdown('<div class="agg-arrow">→</div>', unsafe_allow_html=True)
             with c4:
                 alias = st.text_input(
                     "alias",
@@ -391,21 +385,19 @@ def _order_limit_section(schema, model: QueryModel, cols: List[str]) -> None:
             '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);"></div>',
             unsafe_allow_html=True,
         )
-        lim_col, hint_col = st.columns([0.4, 0.6])
-        with lim_col:
-            limit = st.number_input(
-                "LIMIT",
-                min_value=0,
-                max_value=1_000_000,
-                step=100,
-                value=limit_val,
-                key="limit_input",
-            )
-        with hint_col:
-            st.markdown(
-                '<div style="padding-top:28px;font-size:11.5px;color:var(--ink-3);">0 = no limit</div>',
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            '<div style="display:flex;align-items:center;gap:8px;margin:6px 0 2px;">'
+            '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;'
+            'color:var(--ink-3);font-weight:600;">LIMIT</span>'
+            '<span style="font-size:11px;color:var(--ink-3);">— 0 means no cap</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        limit = st.number_input(
+            "LIMIT", min_value=0, max_value=1_000_000, step=100,
+            value=limit_val, key="limit_input",
+            label_visibility="collapsed",
+        )
         model.limit = int(limit) if limit > 0 else None
 
         model.order_by = []
