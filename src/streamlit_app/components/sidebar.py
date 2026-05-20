@@ -154,10 +154,12 @@ def _extra_col_html(dtype: str, p: dict) -> str:
         if not counts:
             return ""
         max_c = max(counts) if counts else 1
-        bars = "".join(
-            f'<span{"  class=\"hi\"" if c == max_c else ""} style="height:{max(round(c/max_c*100), 4)}%;"></span>'
-            for c in counts
-        )
+        bar_parts = []
+        for c in counts:
+            cls = ' class="hi"' if c == max_c else ""
+            pct = max(round(c / max_c * 100), 4)
+            bar_parts.append(f'<span{cls} style="height:{pct}%;"></span>')
+        bars = "".join(bar_parts)
         return f'<div class="sparkline-wrap">{bars}</div>'
     elif dtype == "text":
         top = p.get("top_values", {})
