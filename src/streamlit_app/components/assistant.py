@@ -107,26 +107,27 @@ def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
             unsafe_allow_html=True,
         )
 
-    # Insight cards — up to 3, strict 3-column grid
+    # Insight cards — single HTML grid, no Streamlit column machinery
     insights = det.insights[:3]
     if insights:
-        cols = st.columns(len(insights))
-        for i, ins in enumerate(insights):
-            with cols[i]:
-                delta_color = {
-                    "up":      "var(--good)",
-                    "down":    "var(--bad)",
-                    "neutral": "var(--ink-3)",
-                }.get(ins.direction, "var(--ink-3)")
-                st.markdown(
-                    f'<div class="insight-card">'
-                    f'<div class="insight-label">{ins.label}</div>'
-                    f'<div class="insight-value">{ins.value}</div>'
-                    f'<div class="insight-delta" style="color:{delta_color};">'
-                    f'{ins.delta}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+        cards_html = ""
+        for ins in insights:
+            delta_cls = {
+                "up":      "delta-up",
+                "down":    "delta-down",
+                "neutral": "delta-neutral",
+            }.get(ins.direction, "delta-neutral")
+            cards_html += (
+                f'<div class="insight-card">'
+                f'<div class="insight-label">{ins.label}</div>'
+                f'<div class="insight-value">{ins.value}</div>'
+                f'<div class="insight-delta {delta_cls}">{ins.delta}</div>'
+                f'</div>'
+            )
+        st.markdown(
+            f'<div class="insights-grid insights-{len(insights)}">{cards_html}</div>',
+            unsafe_allow_html=True,
+        )
 
     if det.warnings:
         for w in det.warnings:

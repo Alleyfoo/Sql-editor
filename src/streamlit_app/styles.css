@@ -450,13 +450,22 @@ button, input, select, textarea {
   line-height: 1.45;
 }
 
-/* ── Insight cards ──────────────────────────────────────────────────────── */
+/* ── Insight grid + cards ───────────────────────────────────────────────── */
+.insights-grid {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+/* 3 cards → 3 equal columns; 2 cards → 2; 1 card → 1 at 40% */
+.insights-3 { grid-template-columns: repeat(3, 1fr); }
+.insights-2 { grid-template-columns: repeat(2, 1fr); }
+.insights-1 { grid-template-columns: minmax(140px, 40%); }
+
 .insight-card {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--r-2);
   padding: 10px 12px;
-  margin-bottom: 6px;
 }
 .insight-label {
   font-size: 10px;
@@ -473,12 +482,23 @@ button, input, select, textarea {
   color: var(--ink);
   letter-spacing: -0.01em;
   margin-bottom: 3px;
+  line-height: 1.3;
 }
 .insight-delta {
   font-family: "IBM Plex Mono", monospace;
   font-size: 10.5px;
-  color: var(--ink-3);
   line-height: 1.4;
+}
+.delta-up      { color: var(--good); }
+.delta-down    { color: var(--bad); }
+.delta-neutral { color: var(--ink-3); }
+
+/* Tighten vertical gaps inside assistant chat messages */
+[data-testid="stChatMessage"] [data-testid="stVerticalBlock"] {
+  gap: 0.3rem !important;
+}
+[data-testid="stChatMessage"] [data-testid="stMarkdown"] {
+  margin-bottom: 0 !important;
 }
 
 /* ── Safety badge ───────────────────────────────────────────────────────── */
