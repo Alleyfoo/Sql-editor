@@ -46,7 +46,7 @@ def render() -> None:
                 st.rerun()
 
         # ── Scrollable transcript ─────────────────────────────────────────
-        with st.container(height=380):
+        with st.container(key="assistant_scroll"):
             for entry in transcript:
                 role = entry.get("role", "user")
                 if role == "user":
