@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import List
+from typing import List, Optional
 
 import streamlit as st
 
@@ -21,17 +21,14 @@ def render() -> None:
         del st.query_params["fq"]
         st.rerun()
 
-    # Build follow-up bank while rendering (collected this pass, used next)
     followup_bank: dict = {}
     fq_idx = 0
 
-    # Count user messages for the badge
     n_user = sum(1 for e in transcript if e.get("role") == "user")
     dataset_name = st.session_state.get("dataset_name", "")
 
     st.markdown("---")
 
-    # Section header
     head_col, clear_col = st.columns([1, 0.22])
     with head_col:
         count_html = f'<span class="count">{n_user}</span>' if n_user else ""
@@ -48,7 +45,6 @@ def render() -> None:
             st.session_state["_followup_bank"] = {}
             st.rerun()
 
-    # Transcript entries
     for entry in transcript:
         role = entry.get("role", "user")
         if role == "user":
@@ -68,7 +64,9 @@ def render() -> None:
                 routed = entry.get("routed", False)
                 reply = entry.get("reply", "")
                 sql = entry.get("sql", "")
-                analysis = entry.get("analysis")
+                det_analysis = entry.get("det_analysis")
+                # Legacy LLM analysis (kept for any old transcript entries)
+                old_analysis = entry.get("analysis")
 
                 if error:
                     st.error(error)
@@ -85,8 +83,14 @@ def render() -> None:
                         with st.expander("SQL", expanded=False):
                             st.code(sql, language="sql")
 
-                if analysis:
-                    followups = _render_analysis(analysis, fq_idx)
+                # Structured analysis takes priority; fall back to legacy LLM cards.
+                if det_analysis is not None and not det_analysis.is_empty:
+                    followups = _render_det_analysis(det_analysis, fq_idx)
+                    for i, q in enumerate(followups):
+                        followup_bank[str(fq_idx + i)] = q
+                    fq_idx += len(followups)
+                elif old_analysis:
+                    followups = _render_legacy_analysis(old_analysis, fq_idx)
                     for i, q in enumerate(followups):
                         followup_bank[str(fq_idx + i)] = q
                     fq_idx += len(followups)
@@ -94,14 +98,67 @@ def render() -> None:
     st.session_state["_followup_bank"] = followup_bank
 
 
-def _render_analysis(analysis, fq_start: int = 0) -> List[str]:
-    """Render insight cards + follow-up chips. Returns follow-up question texts."""
+def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
+    """Render a DeterministicAnalysis into headline + cards + chips."""
+    # Headline callout — bold finding above the cards
+    if det.headline:
+        st.markdown(
+            f'<div class="headline-callout">{det.headline.text}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Insight cards — up to 3, strict 3-column grid
+    insights = det.insights[:3]
+    if insights:
+        cols = st.columns(len(insights))
+        for i, ins in enumerate(insights):
+            with cols[i]:
+                delta_color = {
+                    "up":      "var(--good)",
+                    "down":    "var(--bad)",
+                    "neutral": "var(--ink-3)",
+                }.get(ins.direction, "var(--ink-3)")
+                st.markdown(
+                    f'<div class="insight-card">'
+                    f'<div class="insight-label">{ins.label}</div>'
+                    f'<div class="insight-value">{ins.value}</div>'
+                    f'<div class="insight-delta" style="color:{delta_color};">'
+                    f'{ins.delta}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+    if det.warnings:
+        for w in det.warnings:
+            st.warning(w)
+
+    questions = det.next_questions[:3] if det.next_questions else []
+    _render_followup_chips(questions, fq_start)
+    return questions
+
+
+def _render_followup_chips(questions: List[str], fq_start: int) -> None:
+    if not questions:
+        return
+    chips_html = "".join(
+        f'<a href="?fq={fq_start + i}" class="followup-chip">'
+        f'→ {urllib.parse.escape(q)}'
+        f'</a>'
+        for i, q in enumerate(questions)
+    )
+    st.markdown(
+        f'<div class="followups-row">{chips_html}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_legacy_analysis(analysis, fq_start: int = 0) -> List[str]:
+    """Render the old ResultAnalysis shape (backward compat for pre-4b entries)."""
     insights = analysis.insights[:3] if analysis.insights else []
     if insights:
         cols = st.columns(min(len(insights), 3))
         for i, insight in enumerate(insights):
             with cols[i]:
-                # Try to split "Label: Value · detail" for richer display
                 if ":" in insight:
                     label, rest = insight.split(":", 1)
                     value_part = rest.strip()
@@ -124,16 +181,5 @@ def _render_analysis(analysis, fq_start: int = 0) -> List[str]:
             st.warning(w)
 
     questions = analysis.next_questions[:3] if analysis.next_questions else []
-    if questions:
-        chips_html = "".join(
-            f'<a href="?fq={fq_start + i}" class="followup-chip">'
-            f'→ {urllib.parse.escape(q)}'
-            f'</a>'
-            for i, q in enumerate(questions)
-        )
-        st.markdown(
-            f'<div class="followups-row">{chips_html}</div>',
-            unsafe_allow_html=True,
-        )
-
+    _render_followup_chips(questions, fq_start)
     return questions

@@ -15,6 +15,10 @@ def render() -> None:
     dataset_name: Optional[str] = st.session_state.get("dataset_name")
 
     with st.sidebar:
+        st.markdown(
+            '<div class="schema-section-head"><span>Active Dataset</span></div>',
+            unsafe_allow_html=True,
+        )
         _render_dataset_card(dataset_name, meta, schema)
         st.divider()
         if schema:
@@ -26,11 +30,10 @@ def render() -> None:
 def _render_dataset_card(name, meta, schema) -> None:
     if not name:
         st.markdown(
-            '<div style="padding:16px;background:#F4F1EA;border-radius:6px;'
-            'border:1px dashed #E4DFD2;text-align:center;color:#8E867B;">'
-            '<div style="font-size:22px;margin-bottom:6px;">📂</div>'
-            '<div style="font-size:13px;font-weight:500;">No dataset loaded</div>'
-            '<div style="font-size:12px;margin-top:4px;">Open a CSV to begin</div>'
+            '<div class="ds-empty">'
+            '<div class="ds-empty-ico">&#128194;</div>'
+            '<div class="ds-empty-title">No dataset loaded</div>'
+            '<div class="ds-empty-sub">Open a CSV to begin</div>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -38,29 +41,36 @@ def _render_dataset_card(name, meta, schema) -> None:
 
     rows = meta.get("rows", "—")
     cols = meta.get("cols", "—")
-    size_kb = round(meta.get("size_bytes", 0) / 1024, 1)
-    loaded = meta.get("loaded_at", "")[:16].replace("T", " ")
+    size_bytes = meta.get("size_bytes", 0)
+    size_str = f"{round(size_bytes / 1024, 1)} KB" if size_bytes else "—"
+    loaded = meta.get("loaded_at", "")[:16].replace("T", " ") or "—"
 
     st.markdown(
-        f'<div style="padding:4px 0 8px 0;">'
-        f'<div style="font-weight:600;font-size:13px;margin-bottom:6px;'
-        f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{name}</div>'
-        f'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
-        f'<span class="pill connected">&#9679; Connected</span>'
-        f'<span class="pill readonly">read-only</span>'
+        f'<div class="ds-card">'
+        f'<div class="ds-name">'
+        f'<div class="file-ico"></div>'
+        f'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{name}</div>'
         f'</div>'
-        f'<div style="font-size:12px;color:#57514A;line-height:1.8;">'
-        f'<b>{rows:,}</b> rows &nbsp;·&nbsp; <b>{cols}</b> columns'
-        f'&nbsp;·&nbsp; {size_kb} KB<br/>Loaded {loaded}'
-        f'</div></div>',
+        f'<div class="ds-meta">'
+        f'<div class="kv"><div class="k">Rows</div><div class="v"><span class="mono">{rows:,}</span></div></div>'
+        f'<div class="kv"><div class="k">Columns</div><div class="v"><span class="mono">{cols}</span></div></div>'
+        f'<div class="kv"><div class="k">Size</div><div class="v"><span class="mono">{size_str}</span></div></div>'
+        f'<div class="kv"><div class="k">Loaded</div><div class="v"><span class="mono">{loaded}</span></div></div>'
+        f'</div>'
+        f'<div class="badge-row">'
+        f'<span class="ds-badge connected"><span class="dot"></span>Connected</span>'
+        f'<span class="ds-badge read-only">read-only</span>'
+        f'</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 
 def _render_schema_profile(schema: Dict[str, str]) -> None:
     st.markdown(
-        '<div style="font-size:11px;font-weight:600;letter-spacing:.07em;'
-        'text-transform:uppercase;color:#8E867B;margin-bottom:8px;">Columns</div>',
+        '<div class="schema-section-head">'
+        '<span>Schema</span>'
+        '</div>',
         unsafe_allow_html=True,
     )
     model = st.session_state.get("model")
@@ -73,47 +83,44 @@ def _render_schema_profile(schema: Dict[str, str]) -> None:
         profiles = profile_from_df(df, schema, file_hash)
         st.session_state["_col_profiles"] = profiles
 
-    chip_colors = {
-        "numeric": ("var(--info-soft)", "var(--info)"),
-        "text":    ("var(--good-soft)", "var(--good)"),
-        "date":    ("var(--accent-soft)", "var(--accent-ink)"),
+    type_chip_class = {
+        "numeric": "type-num",
+        "text":    "type-text",
+        "date":    "type-date",
     }
 
     for col, dtype in schema.items():
-        bg, fg = chip_colors.get(dtype, ("#eee", "#333"))
         p = profiles.get(col, {})
         pct = p.get("pct_complete", 100)
-        stats_html = _stats_html(dtype, p)
-        extra_html = _extra_col_html(dtype, p)
+        chip_cls = type_chip_class.get(dtype, "type-text")
+        chip_label = {"numeric": "num", "text": "text", "date": "date"}.get(dtype, dtype)
+        stats_html = _col_stats_html(dtype, p)
+        bar_color = {"numeric": "#1D4ED8", "date": "#2F3F70"}.get(dtype, "")
+        bar_style = f'style="width:{pct}%;{f" background:{bar_color}" if bar_color else ""}"'
 
-        selected = model and col in (model.selected_columns or [])
+        selected = bool(model and col in (model.selected_columns or []))
 
         cb_col, label_col = st.columns([0.08, 0.92], gap="small")
         with cb_col:
             st.checkbox(
                 label=col,
-                value=bool(selected),
+                value=selected,
                 key=f"sel_{col}",
                 label_visibility="collapsed",
                 on_change=_toggle_column,
                 args=(col,),
             )
         with label_col:
+            sel_bg = "rgba(194,65,12,0.04)" if selected else "transparent"
             st.markdown(
-                f'<div class="schema-row" style="background:{"rgba(194,65,12,0.04)" if selected else "transparent"};'
-                f'border-radius:4px;padding:3px 6px;">'
-                f'<div class="schema-row-head">'
-                f'<span class="col-name" style="font-weight:{"500" if selected else "400"}">{col}</span>'
-                f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:10px;'
-                f'padding:1px 5px;border-radius:3px;font-weight:500;'
-                f'background:{bg};color:{fg};">{dtype}</span>'
+                f'<div class="col-row{" selected" if selected else ""}" style="background:{sel_bg};">'
+                f'<div class="col-row-head">'
+                f'<span class="col-name">{col}</span>'
+                f'<span class="type-chip {chip_cls}">{chip_label}</span>'
                 f'</div>'
-                f'<div class="schema-row-stats">{stats_html}</div>'
-                f'<div style="margin-top:2px;">'
-                f'<div class="completeness-bar-wrap">'
-                f'<div class="completeness-bar-fill" style="width:{pct}%;"></div>'
-                f'</div></div>'
-                f'{extra_html}'
+                f'<div class="col-stats">{stats_html}'
+                f'<span class="micro-bar"><i {bar_style}></i></span>'
+                f'</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -131,52 +138,40 @@ def _toggle_column(col: str) -> None:
     model.selected_columns = cols
 
 
-def _stats_html(dtype: str, p: dict) -> str:
+def _col_stats_html(dtype: str, p: dict) -> str:
+    """Return inline stat spans for the col-stats row (before the micro-bar)."""
     if dtype == "numeric":
         mn, mx = p.get("min"), p.get("max")
+        nulls = round(100 - p.get("pct_complete", 100))
         if mn is not None:
-            return f"{mn:,.2g} – {mx:,.2g} &nbsp;·&nbsp; {p.get('pct_complete', 100)}% complete"
+            return (
+                f'<span class="stat"><strong>{mn:,.4g}</strong> min</span>'
+                f'<span class="stat"><strong>{mx:,.4g}</strong> max</span>'
+                f'<span class="stat"><strong>{nulls}</strong> nulls</span>'
+            )
     elif dtype == "text":
         u = p.get("unique_count")
+        nulls = round(100 - p.get("pct_complete", 100))
         if u is not None:
-            return f"{u} unique &nbsp;·&nbsp; {p.get('pct_complete', 100)}% complete"
+            return (
+                f'<span class="stat"><strong>{u}</strong> unique</span>'
+                f'<span class="stat"><strong>{nulls}</strong> nulls</span>'
+            )
     elif dtype == "date":
         mn = p.get("min_date", "")
         mx = p.get("max_date", "")
         if mn:
-            return f"{mn} – {mx}"
-    return f"{p.get('pct_complete', 100)}% complete"
-
-
-def _extra_col_html(dtype: str, p: dict) -> str:
-    if dtype == "numeric":
-        counts = p.get("hist_counts", [])
-        if not counts:
-            return ""
-        max_c = max(counts) if counts else 1
-        bar_parts = []
-        for c in counts:
-            cls = ' class="hi"' if c == max_c else ""
-            pct = max(round(c / max_c * 100), 4)
-            bar_parts.append(f'<span{cls} style="height:{pct}%;"></span>')
-        bars = "".join(bar_parts)
-        return f'<div class="sparkline-wrap">{bars}</div>'
-    elif dtype == "text":
-        top = p.get("top_values", {})
-        if not top:
-            return ""
-        chips = "".join(
-            f'<span class="sample-v">{v}</span>'
-            for v in list(top.keys())[:3]
-        )
-        return f'<div class="sample-row">{chips}</div>'
-    return ""
+            return (
+                f'<span class="stat"><strong>{mn}</strong> min</span>'
+                f'<span class="stat"><strong>{mx}</strong> max</span>'
+            )
+    pct = p.get("pct_complete", 100)
+    return f'<span class="stat"><strong>{pct}%</strong> complete</span>'
 
 
 def _render_recent_runs() -> None:
     st.markdown(
-        '<div style="font-size:11px;font-weight:600;letter-spacing:.07em;'
-        'text-transform:uppercase;color:#8E867B;margin-bottom:8px;">Recent runs</div>',
+        '<div class="schema-section-head"><span>Recent runs</span></div>',
         unsafe_allow_html=True,
     )
     path = DEFAULT_HISTORY_PATH

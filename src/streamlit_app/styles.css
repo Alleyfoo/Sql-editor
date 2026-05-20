@@ -267,90 +267,195 @@ button, input, select, textarea {
   font-family: "IBM Plex Sans", sans-serif !important;
 }
 
-/* ── Type chip helper ───────────────────────────────────────────────────── */
-.type-chip {
-  display: inline-block;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 500;
-  line-height: 1.6;
-}
-.type-chip.numeric { background: var(--info-soft); color: var(--info); }
-.type-chip.text    { background: var(--good-soft); color: var(--good); }
-.type-chip.date    { background: var(--accent-soft); color: var(--accent-ink); }
+/* (type-chip classes moved to Schema section below) */
 
-/* Schema row in sidebar */
-.schema-row { padding: 2px 0; }
-.schema-row-head {
+/* ── Dataset card ────────────────────────────────────────────────────────── */
+.ds-empty {
+  padding: 16px;
+  background: var(--paper);
+  border-radius: var(--r-2);
+  border: 1px dashed var(--line);
+  text-align: center;
+  color: var(--ink-3);
+}
+.ds-empty-ico { font-size: 22px; margin-bottom: 6px; }
+.ds-empty-title { font-size: 13px; font-weight: 500; }
+.ds-empty-sub { font-size: 12px; margin-top: 4px; }
+
+.ds-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  padding: 12px 12px 10px;
+}
+.ds-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+}
+.file-ico {
+  width: 18px; height: 22px;
+  border: 1.5px solid var(--ink-2);
+  border-radius: 2px;
+  position: relative;
+  flex-shrink: 0;
+}
+.file-ico::before {
+  content: "";
+  position: absolute;
+  top: -1.5px; right: -1.5px;
+  width: 7px; height: 7px;
+  background: var(--paper);
+  border-left: 1.5px solid var(--ink-2);
+  border-bottom: 1.5px solid var(--ink-2);
+}
+.file-ico::after {
+  content: "CSV";
+  position: absolute;
+  bottom: 1px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 6px;
+  font-weight: 700;
+  color: var(--ink-2);
+  letter-spacing: 0.02em;
+}
+.ds-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+}
+.ds-meta .kv .k {
+  color: var(--ink-3);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ds-meta .kv .v { color: var(--ink); font-weight: 500; }
+.ds-meta .kv .v .mono { font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+.badge-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.ds-badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--good-soft);
+  color: var(--good);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ds-badge.read-only { background: #EDE5D3; color: #6B5318; }
+.ds-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* Schema section header */
+.schema-section-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line-2);
+  display: flex;
+  align-items: center;
+}
+
+/* Schema column rows */
+.col-row {
+  padding: 3px 4px;
+  border-radius: var(--r-1);
+  margin-bottom: 1px;
+}
+.col-row.selected { background: rgba(194,65,12,0.04); }
+.col-row-head {
   display: flex;
   align-items: center;
   gap: 6px;
   line-height: 1.4;
 }
-.schema-row .col-name {
-  font-size: 12.5px;
-  font-weight: 500;
+.col-row .col-name {
+  font-size: 12px;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--ink);
 }
-.schema-row-stats {
-  font-size: 11px;
-  color: var(--ink-3);
-  margin-top: 1px;
-  padding-left: 0;
-}
+.col-row.selected .col-name { font-weight: 500; color: var(--accent-ink); }
 
-/* Sparkline */
-.sparkline-wrap {
-  display: flex;
-  align-items: flex-end;
-  gap: 1.5px;
-  height: 18px;
-  margin-top: 3px;
+/* Type chips */
+.type-chip {
+  display: inline-block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 500;
+  flex-shrink: 0;
 }
-.sparkline-wrap span {
-  flex: 1;
-  background: var(--ink-4);
-  border-radius: 1px 1px 0 0;
-  min-width: 3px;
-  opacity: 0.5;
-}
-.sparkline-wrap span.hi {
-  background: var(--accent);
-  opacity: 0.85;
-}
+.type-num  { background: var(--info-soft); color: var(--info); }
+.type-text { background: var(--good-soft); color: var(--good); }
+.type-date { background: var(--accent-soft); color: var(--accent-ink); }
 
-/* Sample value chips */
-.sample-row {
+/* Col-stats row */
+.col-stats {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 3px;
-}
-.sample-v {
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
   font-size: 10.5px;
   color: var(--ink-3);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
+}
+.col-stats .stat { display: inline-flex; align-items: center; gap: 3px; }
+.col-stats .stat strong {
   font-family: "IBM Plex Mono", monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  max-width: 90px;
-  text-overflow: ellipsis;
+  color: var(--ink-2);
+  font-weight: 500;
 }
 
-/* ── Insight card ───────────────────────────────────────────────────────── */
+/* Micro-bar (completeness / range fill) */
+.micro-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--line-2);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 20px;
+}
+.micro-bar i {
+  display: block;
+  height: 100%;
+  background: var(--good);
+  border-radius: 2px;
+  font-style: normal;
+}
+
+/* ── Headline callout ───────────────────────────────────────────────────── */
+.headline-callout {
+  font-family: "IBM Plex Serif", serif;
+  font-style: italic;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+
+/* ── Insight cards ──────────────────────────────────────────────────────── */
 .insight-card {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--r-2);
-  padding: 12px 14px;
+  padding: 10px 12px;
   margin-bottom: 6px;
 }
 .insight-label {
@@ -359,13 +464,21 @@ button, input, select, textarea {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-3);
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 .insight-value {
   font-family: "IBM Plex Serif", serif;
   font-style: italic;
-  font-size: 15px;
+  font-size: 15.5px;
   color: var(--ink);
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
+}
+.insight-delta {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  line-height: 1.4;
 }
 
 /* ── Safety badge ───────────────────────────────────────────────────────── */
@@ -393,18 +506,7 @@ button, input, select, textarea {
 .pill.readonly  { background: var(--warn-soft); color: var(--warn); }
 .pill.routed    { background: var(--info-soft); color: var(--info); }
 
-/* ── Completeness bar ───────────────────────────────────────────────────── */
-.completeness-bar-wrap {
-  height: 3px;
-  background: var(--line);
-  border-radius: 2px;
-  margin-top: 3px;
-}
-.completeness-bar-fill {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--accent);
-}
+/* (completeness bar replaced by .micro-bar in Schema section) */
 
 /* ── Ask section ─────────────────────────────────────────────────────────── */
 .ask-model-line {
