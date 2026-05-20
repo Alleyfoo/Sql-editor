@@ -597,6 +597,7 @@ button, input, select, textarea {
   letter-spacing: .07em;
   text-transform: uppercase;
   color: var(--ink-3);
+  margin-top: 4px;
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line-2);
