@@ -31,7 +31,7 @@ def render() -> None:
             st.markdown(
                 '<div class="cp-head-text">'
                 '<span class="cp-title">Compose</span>'
-                '<span class="cp-sub">visual builder · synced ↔ SQL</span>'
+                '<span class="cp-sub">visual builder &middot; synced &harr; SQL</span>'
                 '</div>',
                 unsafe_allow_html=True,
             )

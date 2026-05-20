@@ -138,14 +138,28 @@ def _toggle_column(col: str) -> None:
     model.selected_columns = cols
 
 
+def _fmt_num(v) -> str:
+    """Human-readable number for sidebar stats — no scientific notation."""
+    if v is None:
+        return "—"
+    f = float(v)
+    if f == int(f):
+        return f"{int(f):,}"
+    if abs(f) >= 10_000:
+        return f"{f:,.0f}"
+    if abs(f) >= 100:
+        return f"{f:,.1f}"
+    return f"{f:.2f}"
+
+
 def _col_stats_html(dtype: str, p: dict) -> str:
     """Return exactly 2 stat spans before the micro-bar (auto auto 1fr grid)."""
     if dtype == "numeric":
         mn, mx = p.get("min"), p.get("max")
         if mn is not None:
             return (
-                f'<span class="stat"><strong>{mn:,.4g}</strong> min</span>'
-                f'<span class="stat"><strong>{mx:,.4g}</strong> max</span>'
+                f'<span class="stat"><strong>{_fmt_num(mn)}</strong> min</span>'
+                f'<span class="stat"><strong>{_fmt_num(mx)}</strong> max</span>'
             )
     elif dtype == "text":
         u = p.get("unique_count")
