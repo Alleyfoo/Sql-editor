@@ -12,6 +12,8 @@ from src.query_model import (
     QueryModel,
 )
 
+_NUM_GLYPHS = {1: "①", 2: "②", 3: "③", 4: "④", 5: "⑤"}
+
 
 def render() -> None:
     if not st.session_state.get("schema"):
@@ -22,34 +24,30 @@ def render() -> None:
     model: QueryModel = st.session_state.model
     cols = list(schema.keys())
 
-    # Panel header + Reset
-    head_col, btn_col = st.columns([1, 0.25])
-    with head_col:
-        st.markdown(
-            '<div class="cp-panel-head">'
-            '<span class="cp-title">Compose</span>'
-            '<span class="cp-sub">visual builder · synced with SQL ↔</span>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-    with btn_col:
-        rc, sc = st.columns(2)
-        if rc.button("Reset", key="cp_reset", use_container_width=True):
-            from src.streamlit_app import state
-            state.reset_query()
-            st.rerun()
-        sc.button("Save ↗", key="cp_save", disabled=True, use_container_width=True)
+    with st.container(key="composer_panel"):
+        # Header row — inside the panel so it shares the border
+        head_col, btn_col = st.columns([1, 0.32], gap="small")
+        with head_col:
+            st.markdown(
+                '<div class="cp-head-text">'
+                '<span class="cp-title">Compose</span>'
+                '<span class="cp-sub">visual builder · synced ↔ SQL</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        with btn_col:
+            rc, sc = st.columns(2, gap="small")
+            if rc.button("Reset", key="cp_reset", use_container_width=True):
+                from src.streamlit_app import state
+                state.reset_query()
+                st.rerun()
+            sc.button("Save ↗", key="cp_save", disabled=True, use_container_width=True)
 
-    # Wrap all sections in the panel div for gap-tightening CSS
-    st.markdown('<div class="composer-panel">', unsafe_allow_html=True)
-
-    _select_section(schema, model, cols)
-    _where_section(schema, model, cols)
-    _group_agg_section(schema, model, cols)
-    _having_section(schema, model, cols)
-    _order_limit_section(schema, model, cols)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        _select_section(schema, model, cols)
+        _where_section(schema, model, cols)
+        _group_agg_section(schema, model, cols)
+        _having_section(schema, model, cols)
+        _order_limit_section(schema, model, cols)
 
     _refresh_sql(model)
 
@@ -58,8 +56,10 @@ def render() -> None:
 
 def _section(num: int, title: str, summary: str = "",
              count: int | None = None, *, expanded: bool = True):
-    count_part = f" · **{count}**" if count is not None else ""
-    label = f"**{num}**  {title}{count_part}   {summary}"
+    glyph = _NUM_GLYPHS.get(num, str(num))
+    count_part = f"  ·  `{count}`" if count is not None else ""
+    summary_part = f"   *{summary}*" if summary else ""
+    label = f"{glyph}  **{title}**{count_part}{summary_part}"
     return st.expander(label, expanded=expanded)
 
 
@@ -124,8 +124,7 @@ def _filter_rows_ui(schema, cols, row_key: str, target_list: list) -> None:
         with c_conj:
             if i == 0:
                 st.markdown(
-                    '<div style="padding-top:6px;font-size:11px;font-weight:600;'
-                    'font-family:\'IBM Plex Mono\',monospace;color:#57514A;">WHERE</div>',
+                    '<span class="conj-label">WHERE</span>',
                     unsafe_allow_html=True,
                 )
             else:

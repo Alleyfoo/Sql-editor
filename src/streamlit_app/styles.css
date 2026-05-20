@@ -62,10 +62,16 @@ button, input, select, textarea {
 }
 /* Tighten sidebar vertical rhythm */
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-  gap: 0.25rem !important;
+  gap: 0.2rem !important;
+}
+/* Schema col rows: tighter than other sidebar elements */
+[data-testid="stSidebar"] .col-row + [data-testid="stHorizontalBlock"],
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(.col-row) {
+  gap: 0 !important;
+  align-items: flex-start !important;
 }
 [data-testid="stSidebar"] [data-testid="stCheckbox"] {
-  margin-top: 2px !important;
+  margin-top: 3px !important;
 }
 [data-testid="stSidebar"] [data-testid="stCheckbox"] label {
   padding: 0 !important;
@@ -87,29 +93,39 @@ button, input, select, textarea {
   border-color: var(--accent-ink) !important;
 }
 
-/* ── Composer panel ─────────────────────────────────────────────────────── */
-.composer-panel {
+/* ── Composer panel (keyed container) ───────────────────────────────────── */
+.st-key-composer_panel {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-3);
   overflow: hidden;
   margin-bottom: 8px;
 }
-.composer-panel [data-testid="stVerticalBlock"] {
-  gap: 0.35rem !important;
+.st-key-composer_panel [data-testid="stVerticalBlock"] {
+  gap: 0 !important;
 }
-.composer-panel [data-testid="stHorizontalBlock"] {
+.st-key-composer_panel [data-testid="stHorizontalBlock"] {
   gap: 0.4rem !important;
 }
 
-/* Composer panel header */
-.cp-panel-head {
+/* Header row — first horizontal block in the panel */
+[data-testid="stHorizontalBlock"]:has(.cp-head-text) {
+  padding: 9px 14px 8px !important;
+  background: #FDFCF8 !important;
+  border-bottom: 1px solid var(--line-2) !important;
+  margin: 0 !important;
+}
+[data-testid="stHorizontalBlock"]:has(.cp-head-text) .stButton button {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+.cp-head-text {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: #FDFCF8;
-  border-bottom: 1px solid var(--line-2);
+  gap: 12px;
+  align-items: baseline;
+  padding-top: 4px;
 }
 .cp-title {
   font-weight: 600;
@@ -122,41 +138,67 @@ button, input, select, textarea {
   font-family: "IBM Plex Mono", monospace;
 }
 
-/* Expanders used as composer sections */
-.composer-panel [data-testid="stExpander"] {
+/* Expanders — section rows */
+.st-key-composer_panel [data-testid="stExpander"] {
   border: none !important;
   border-bottom: 1px solid var(--line-2) !important;
   border-radius: 0 !important;
   margin: 0 !important;
   background: transparent !important;
 }
-.composer-panel [data-testid="stExpander"]:last-child {
+.st-key-composer_panel [data-testid="stExpander"]:last-child {
   border-bottom: none !important;
 }
-.composer-panel [data-testid="stExpander"] summary {
-  padding: 9px 16px !important;
+.st-key-composer_panel [data-testid="stExpander"] summary {
+  padding: 8px 16px !important;
   font-family: "IBM Plex Sans", sans-serif !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   color: var(--ink) !important;
 }
-/* Number badge — bold markdown inside expander label */
-.composer-panel [data-testid="stExpander"] summary strong {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 20px !important;
-  height: 20px !important;
-  background: var(--ink) !important;
-  color: white !important;
-  border-radius: 50% !important;
-  font-size: 11px !important;
-  margin-right: 7px !important;
-  vertical-align: middle !important;
+/* Section title bold */
+.st-key-composer_panel [data-testid="stExpander"] summary strong {
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+  background: none !important;
+  border-radius: 0 !important;
+  display: inline !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
-.composer-panel [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+/* Count pill — backtick / inline code in summary */
+.st-key-composer_panel [data-testid="stExpander"] summary code {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 10.5px !important;
+  padding: 1px 6px !important;
+  border-radius: 999px !important;
+  font-weight: 600 !important;
+}
+/* Summary text — italic in expander label */
+.st-key-composer_panel [data-testid="stExpander"] summary em {
+  font-style: normal !important;
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 11px !important;
+  color: var(--ink-3) !important;
+}
+.st-key-composer_panel [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
   padding: 4px 16px 14px !important;
   border-top: 1px solid var(--line-2) !important;
+}
+
+/* WHERE / HAVING conjunction label */
+.conj-label {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--ink-2);
 }
 
 /* ── Multiselect pills (SELECT + GROUP BY) ──────────────────────────────── */
@@ -180,9 +222,28 @@ button, input, select, textarea {
 .sql-panel {
   background: var(--code-bg);
   border: 1px solid #2a2520;
-  border-radius: var(--r-2);
+  border-top: 1px solid #2a2520;
+  border-radius: var(--r-2) var(--r-2) 0 0;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 0;
+}
+
+/* Run bar — pulled tight against the sql-panel bottom */
+.sql-panel + [data-testid="stHorizontalBlock"] {
+  margin-top: -4px !important;
+  background: #131110 !important;
+  border: 1px solid #2a2520 !important;
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+  border-radius: 0 0 var(--r-2) var(--r-2) !important;
+  padding: 8px 14px !important;
+  margin-bottom: 10px !important;
+}
+.sql-panel + [data-testid="stHorizontalBlock"] .safety-badge {
+  background: rgba(21,128,61,0.18) !important;
+  color: #8EE2A5 !important;
+}
+.sql-panel + [data-testid="stHorizontalBlock"] [style*="IBM Plex Mono"] {
+  color: rgba(232,226,211,0.5) !important;
 }
 .sql-toolbar {
   display: flex;
@@ -402,16 +463,18 @@ button, input, select, textarea {
 .type-text { background: var(--good-soft); color: var(--good); }
 .type-date { background: var(--accent-soft); color: var(--accent-ink); }
 
-/* Col-stats row */
+/* Col-stats row — always 2 stat spans + micro-bar */
 .col-stats {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0 8px;
   align-items: center;
-  gap: 8px;
-  margin-top: 2px;
+  margin-top: 3px;
+  margin-left: 18px;
   font-size: 10.5px;
   color: var(--ink-3);
 }
-.col-stats .stat { display: inline-flex; align-items: center; gap: 3px; }
+.col-stats .stat { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .col-stats .stat strong {
   font-family: "IBM Plex Mono", monospace;
   color: var(--ink-2);
@@ -736,8 +799,8 @@ button, input, select, textarea {
   border-radius: var(--r-3) !important;
 }
 
-/* ── Container border (ask card) ────────────────────────────────────────── */
-[data-testid="stVerticalBlockBorderWrapper"] {
+/* ── Container border (ask card only) ───────────────────────────────────── */
+[data-testid="stVerticalBlockBorderWrapper"]:has(.ask-anchor) {
   border-radius: var(--r-3) !important;
   border-color: var(--line) !important;
   background: var(--card) !important;

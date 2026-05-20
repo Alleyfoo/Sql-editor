@@ -100,7 +100,7 @@ def _render_schema_profile(schema: Dict[str, str]) -> None:
 
         selected = bool(model and col in (model.selected_columns or []))
 
-        cb_col, label_col = st.columns([0.08, 0.92], gap="small")
+        cb_col, label_col = st.columns([0.12, 0.88], gap="small")
         with cb_col:
             st.checkbox(
                 label=col,
@@ -139,34 +139,32 @@ def _toggle_column(col: str) -> None:
 
 
 def _col_stats_html(dtype: str, p: dict) -> str:
-    """Return inline stat spans for the col-stats row (before the micro-bar)."""
+    """Return exactly 2 stat spans before the micro-bar (auto auto 1fr grid)."""
     if dtype == "numeric":
         mn, mx = p.get("min"), p.get("max")
-        nulls = round(100 - p.get("pct_complete", 100))
         if mn is not None:
             return (
                 f'<span class="stat"><strong>{mn:,.4g}</strong> min</span>'
                 f'<span class="stat"><strong>{mx:,.4g}</strong> max</span>'
-                f'<span class="stat"><strong>{nulls}</strong> nulls</span>'
             )
     elif dtype == "text":
         u = p.get("unique_count")
-        nulls = round(100 - p.get("pct_complete", 100))
+        pct = p.get("pct_complete", 100)
         if u is not None:
             return (
                 f'<span class="stat"><strong>{u}</strong> unique</span>'
-                f'<span class="stat"><strong>{nulls}</strong> nulls</span>'
+                f'<span class="stat"><strong>{pct:.0f}%</strong> full</span>'
             )
     elif dtype == "date":
         mn = p.get("min_date", "")
         mx = p.get("max_date", "")
         if mn:
             return (
-                f'<span class="stat"><strong>{mn}</strong> min</span>'
-                f'<span class="stat"><strong>{mx}</strong> max</span>'
+                f'<span class="stat"><strong>{mn}</strong></span>'
+                f'<span class="stat"><strong>{mx}</strong></span>'
             )
     pct = p.get("pct_complete", 100)
-    return f'<span class="stat"><strong>{pct}%</strong> complete</span>'
+    return f'<span class="stat"><strong>{pct:.0f}%</strong> full</span><span class="stat"></span>'
 
 
 def _render_recent_runs() -> None:

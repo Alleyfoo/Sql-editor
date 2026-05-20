@@ -25,6 +25,8 @@ def render() -> None:
         st.session_state["nl_prefill"] = ""
 
     with st.container(border=True):
+        st.markdown('<span class="ask-anchor" style="display:none"></span>',
+                    unsafe_allow_html=True)
         # Header line: pulse dot + label + model info
         transcript = st.session_state.get("transcript", [])
         n_turns = sum(1 for m in transcript if m.get("role") == "user")
@@ -65,8 +67,8 @@ def render() -> None:
                 key="btn_analyze",
             )
 
-        # Quick queries · runs offline (no LLM dependency)
-        _render_quick_queries(schema, has_data)
+    # Quick queries outside the ask card so the card stays compact
+    _render_quick_queries(schema, has_data)
 
     if (ask_clicked or analyze_clicked) and text.strip():
         _handle_ask(text.strip(), run_llm_analysis=analyze_clicked)
