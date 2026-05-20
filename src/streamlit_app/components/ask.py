@@ -47,7 +47,11 @@ def render() -> None:
                 "ask",
                 value=prefill,
                 label_visibility="collapsed",
-                placeholder="Ask in plain English…  e.g. show top 10 by revenue",
+                placeholder=(
+                    "e.g. monthly revenue trend 2024, "
+                    "top 10 customers by margin, "
+                    "or compare EMEA vs AMER year-over-year"
+                ),
                 disabled=not has_data,
                 key="nl_text_input",
             )
@@ -386,8 +390,8 @@ def _execute_and_compute(
     """Execute SQL, compute deterministic insights, optionally run LLM analysis.
 
     Returns a DeterministicAnalysis (possibly enriched), or None on execution failure.
-    The LLM analysis path is used only when run_llm_analysis=True; Phase 4c will
-    wire the enrichment layer here. For now it falls through silently.
+    When run_llm_analysis=True, Phase 4c enrichment asks the LLM to write a
+    2-3 sentence narrative and suggest additional follow-up questions.
     """
     import time
     from src.executor import execute
@@ -414,6 +418,26 @@ def _execute_and_compute(
     except Exception:
         det = None
 
-    # Phase 4c: LLM enrichment layer will run here when run_llm_analysis=True.
+    # Phase 4c — LLM enrichment: runs only on "Ask + Analyze"
+    if run_llm_analysis and det is not None and not det.is_empty:
+        try:
+            from src.config import load_config
+            from src.llm.natural_language import load_llm_config
+            from src.streamlit_app.insight_enrichment import (
+                enrich_analysis,
+                results_to_sample_csv,
+            )
+            with st.spinner("Analysing…"):
+                cfg = load_llm_config(load_config())
+                sample_csv = results_to_sample_csv(df, max_rows=15)
+                det = enrich_analysis(
+                    det,
+                    sql=sql,
+                    user_text=text,
+                    results_sample=sample_csv,
+                    config=cfg,
+                )
+        except Exception:
+            pass  # enrichment failure never blocks the UI
 
     return det

@@ -1045,6 +1045,19 @@ button, input, select, textarea {
   padding: 3px 9px;
 }
 
+/* Phase 4c — LLM narrative prose block */
+.analysis-prose {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  padding: 8px 12px;
+  margin: 8px 0 4px;
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
 /* ── Chat messages ──────────────────────────────────────────────────────── */
 [data-testid="stChatMessage"] {
   border-radius: var(--r-3) !important;

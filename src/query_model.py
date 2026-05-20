@@ -137,7 +137,7 @@ AGGREGATION_FUNCTIONS = (
 )
 
 ORDER_DIRECTIONS = ("ASC", "DESC")
-DATE_BUCKET_GRAINS = ("day",)
+DATE_BUCKET_GRAINS = ("day", "month", "year")
 
 # Maximum decimal places allowed via numeric formatting.
 MAX_FORMAT_DECIMALS = 10
@@ -364,8 +364,14 @@ class QueryModel:
 
     def _bucket_expr(self, column: str, grain: str) -> str:
         if grain == "day":
-            # Timestamps are ISO-like text; day bucket is YYYY-MM-DD.
+            # Timestamps are ISO-like text; day bucket → YYYY-MM-DD
             return f"substr({quote_ident(column)}, 1, 10)"
+        if grain == "month":
+            # Month bucket → YYYY-MM (first 7 chars of ISO date)
+            return f"substr({quote_ident(column)}, 1, 7)"
+        if grain == "year":
+            # Year bucket → YYYY (first 4 chars of ISO date)
+            return f"substr({quote_ident(column)}, 1, 4)"
         raise ValueError(f"unsupported date bucket grain: {grain!r}")
 
     def _select_expr(self, column: str, fmt: Dict[str, ColumnFormat]) -> str:

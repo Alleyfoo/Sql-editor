@@ -106,7 +106,7 @@ def render() -> None:
 
 
 def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
-    """Render a DeterministicAnalysis into headline + cards + chips."""
+    """Render a DeterministicAnalysis into headline + cards + prose + chips."""
     if det.headline:
         st.markdown(
             f'<div class="headline-callout">{det.headline.text}</div>',
@@ -134,11 +134,18 @@ def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
             unsafe_allow_html=True,
         )
 
+    # Phase 4c: LLM narrative sits between the cards and the follow-up chips
+    if det.prose:
+        st.markdown(
+            f'<div class="analysis-prose">{det.prose}</div>',
+            unsafe_allow_html=True,
+        )
+
     if det.warnings:
         for w in det.warnings:
             st.warning(w)
 
-    questions = det.next_questions[:3] if det.next_questions else []
+    questions = det.next_questions[:5] if det.next_questions else []
     _render_followup_chips(questions, fq_start)
     return questions
 
