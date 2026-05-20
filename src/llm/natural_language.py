@@ -63,12 +63,29 @@ class LLMError(RuntimeError):
 class RouteToPythonError(LLMError):
     """Raised when NL intent should be handled by Python analytics."""
 
-    def __init__(self, reason: str) -> None:
+    def __init__(
+        self,
+        reason: str,
+        *,
+        blocked_intent: str,
+        next_actions: List[str],
+        note: str = "",
+    ) -> None:
         self.reason = reason
-        super().__init__(
-            "This request is better handled by a Python analytics path "
-            f"({reason}) instead of SQL generation."
-        )
+        self.blocked_intent = blocked_intent
+        self.next_actions = list(next_actions)
+        self.note = note
+        lines = [
+            "This request was routed away from SQL generation.",
+            f"Why: {reason}.",
+            f"Blocked in SQL mode: {blocked_intent}.",
+        ]
+        if note:
+            lines.append(f"Note: {note}.")
+        if self.next_actions:
+            lines.append("Next best actions:")
+            lines.extend([f"- {action}" for action in self.next_actions])
+        super().__init__("\n".join(lines))
 
 
 # ---------------------------------------------------------------------------
@@ -81,8 +98,9 @@ class LLMConfig:
     host: str = "http://localhost:11434"
     model: str = "gemma3"
     timeout: float = 60.0
-    provider: str = "ollama"
+    provider: str = "ollama"  # "ollama" | "groq" | "openai_compatible"
     history_depth: int = 6
+    api_key: str = ""  # for Groq / OpenAI-compatible providers
 
 
 def _env_float(name: str, default: float) -> float:
@@ -118,6 +136,12 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
     timeout_default = float(section.get("timeout", 60.0) or 60.0)
     timeout = _env_float("OLLAMA_TIMEOUT", timeout_default)
     provider = str(section.get("provider") or "ollama")
+    # API key: env var takes precedence over config file
+    api_key = (
+        os.environ.get("GROQ_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or str(section.get("api_key") or "")
+    )
     try:
         history_depth = int(section.get("history_depth", 6))
     except (TypeError, ValueError):
@@ -130,6 +154,7 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
         timeout=timeout,
         provider=provider,
         history_depth=history_depth,
+        api_key=api_key,
     )
 
 
@@ -229,6 +254,149 @@ class OllamaClient:
 
 
 # ---------------------------------------------------------------------------
+# OpenAI-compatible client (Groq, OpenAI, any /v1/chat/completions endpoint)
+# ---------------------------------------------------------------------------
+
+# Well-tested free Groq models for SQL generation
+GROQ_MODELS = (
+    "llama-3.3-70b-versatile",   # best quality, generous free tier
+    "llama-3.1-8b-instant",      # fastest, good for simple queries
+    "gemma2-9b-it",              # good structured-output compliance
+    "mixtral-8x7b-32768",        # reliable JSON mode
+)
+
+GROQ_HOST = "https://api.groq.com/openai"
+
+
+class OpenAICompatibleClient:
+    """Minimal stdlib-only client for any /v1/chat/completions endpoint.
+
+    Works with Groq, OpenAI, and any OpenAI-compatible local server
+    (e.g. LM Studio, vLLM).  Uses ``response_format: json_object`` to
+    enforce JSON output without relying on Ollama's ``format`` field.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        model: str,
+        api_key: str,
+        timeout: float = 60.0,
+    ) -> None:
+        self.host = host.rstrip("/")
+        self.model = model
+        self.api_key = api_key
+        self.timeout = float(timeout)
+
+    def generate_json(self, system: str, user: str) -> Dict[str, Any]:
+        """POST a chat-completions request and return the model's JSON payload."""
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+        }
+        data = json.dumps(payload).encode("utf-8")
+        url = self.host + "/v1/chat/completions"
+        request = Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as response:  # nosec
+                body = response.read()
+        except HTTPError as exc:
+            raise LLMError(
+                f"API returned HTTP {exc.code}: {exc.reason}"
+            ) from exc
+        except URLError as exc:
+            raise LLMError(
+                f"could not reach {self.host}: {exc.reason}"
+            ) from exc
+        except TimeoutError as exc:
+            raise LLMError(
+                f"API request timed out after {self.timeout:.0f}s"
+            ) from exc
+        except OSError as exc:
+            raise LLMError(f"transport error: {exc}") from exc
+
+        try:
+            envelope = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"API response was not JSON: {exc}") from exc
+
+        if not isinstance(envelope, dict):
+            raise LLMError("API response envelope is not an object")
+
+        # OpenAI envelope: choices[0].message.content
+        choices = envelope.get("choices")
+        if not isinstance(choices, list) or not choices:
+            raise LLMError("API response contained no choices")
+        content = (choices[0].get("message") or {}).get("content") or ""
+        if not content.strip():
+            raise LLMError("API response contained no message content")
+
+        # Strip markdown fences if model added them despite json_object mode
+        content = content.strip()
+        if content.startswith("```"):
+            lines = content.splitlines()
+            inner = lines[1:]
+            if inner and inner[-1].strip() == "```":
+                inner = inner[:-1]
+            content = "\n".join(inner).strip()
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"model did not return valid JSON: {exc.msg}") from exc
+
+        if not isinstance(parsed, dict):
+            raise LLMError("model JSON must be an object at the top level")
+
+        return parsed
+
+
+# ---------------------------------------------------------------------------
+# Client factory
+# ---------------------------------------------------------------------------
+
+
+def make_llm_client(cfg: LLMConfig):
+    """Return the right client for the configured provider.
+
+    - ``ollama`` / ``ollama_remote``: :class:`OllamaClient` against cfg.host
+    - ``groq``: :class:`OpenAICompatibleClient` against Groq's public API
+    - ``openai_compatible``: :class:`OpenAICompatibleClient` against cfg.host
+    """
+    provider = (cfg.provider or "ollama").lower()
+    if provider in ("ollama", "ollama_remote"):
+        return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
+    if provider == "groq":
+        return OpenAICompatibleClient(
+            host=GROQ_HOST,
+            model=cfg.model,
+            api_key=cfg.api_key,
+            timeout=cfg.timeout,
+        )
+    if provider == "openai_compatible":
+        return OpenAICompatibleClient(
+            host=cfg.host,
+            model=cfg.model,
+            api_key=cfg.api_key,
+            timeout=cfg.timeout,
+        )
+    # Fallback
+    return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
+
+
+# ---------------------------------------------------------------------------
 # Prompt
 # ---------------------------------------------------------------------------
 
@@ -277,7 +445,13 @@ _PYTHON_ROUTE_PATTERNS: List[tuple[re.Pattern[str], str]] = [
         ),
         "cross-role station balance",
     ),
-    (re.compile(r"\b(percentage|percent|ratio|share)\b", re.IGNORECASE), "percentage/rate"),
+    (
+        re.compile(
+            r"\b(percentage|percent|ratio|share)\s+of\b|\bwhat\s+(percentage|percent|ratio|share)\b",
+            re.IGNORECASE,
+        ),
+        "percentage/rate",
+    ),
 ]
 
 
@@ -290,6 +464,56 @@ def detect_python_route_reason(nl: str) -> Optional[str]:
         if pattern.search(text):
             return reason
     return None
+
+
+def _has_queryable_time_column(schema: Dict[str, str]) -> bool:
+    for col, col_type in schema.items():
+        name = str(col).lower()
+        if col_type == "date":
+            return True
+        if any(tok in name for tok in ["date", "time", "year", "month", "day", "week"]):
+            return True
+    return False
+
+
+def _build_python_redirect_details(
+    *,
+    reason: str,
+    schema: Dict[str, str],
+    nl: str,
+) -> tuple[str, List[str], str]:
+    blocked_intent_map = {
+        "percentile": "percentile/quantile computations",
+        "quantile": "percentile/quantile computations",
+        "rolling window": "rolling-window analytics",
+        "standard deviation": "dispersion/statistical computations",
+        "outlier detection": "outlier detection workflows",
+        "anomaly detection": "anomaly detection workflows",
+        "hour extraction": "timestamp-part extraction and bucketing",
+        "column-to-column comparison": "column-to-column row comparisons",
+        "cross-role station balance": "cross-role station balance analysis",
+        "percentage/rate": "ratio/share/percentage calculations",
+    }
+    blocked_intent = blocked_intent_map.get(reason, "analytics-heavy computation")
+
+    next_actions = [
+        "Use the Python analytics route for an exact computed result.",
+        "If you only need a descriptive readout, run a simpler SQL query and then use Ask + Analyze.",
+    ]
+
+    note = ""
+    has_time = _has_queryable_time_column(schema)
+    if reason in {"rolling window", "hour extraction"} and not has_time:
+        note = "no queryable time column was detected in the current schema"
+        next_actions.insert(0, "Add or normalize a time/date column first (preprocessing), then retry.")
+
+    low_nl = (nl or "").lower()
+    if any(tok in low_nl for tok in ["trend", "over time", "time series"]) and not has_time:
+        note = "no queryable time column was detected in the current schema"
+        if "Add or normalize a time/date column first (preprocessing), then retry." not in next_actions:
+            next_actions.insert(0, "Add or normalize a time/date column first (preprocessing), then retry.")
+
+    return blocked_intent, next_actions, note
 
 
 def _format_schema(schema: Dict[str, str]) -> str:
@@ -870,11 +1094,21 @@ def nl_to_query_model(
         raise LLMError("schema is empty — open a CSV first")
     route_reason = detect_python_route_reason(nl.strip())
     if route_reason:
-        raise RouteToPythonError(route_reason)
+        blocked_intent, next_actions, note = _build_python_redirect_details(
+            reason=route_reason,
+            schema=schema,
+            nl=nl.strip(),
+        )
+        raise RouteToPythonError(
+            route_reason,
+            blocked_intent=blocked_intent,
+            next_actions=next_actions,
+            note=note,
+        )
 
     if client is None:
         cfg = config or load_llm_config({})
-        client = OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
+        client = make_llm_client(cfg)
 
     user_prompt = build_user_prompt(
         nl.strip(), schema, selected_columns=selected_columns, history=history

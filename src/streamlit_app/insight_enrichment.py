@@ -118,13 +118,12 @@ def _call_llm(
     results_sample: str,
     config,
 ) -> Tuple[Optional[str], List[str]]:
-    from src.llm.natural_language import LLMError, OllamaClient
+    from src.llm.natural_language import LLMError, make_llm_client
+    import dataclasses
 
-    client = OllamaClient(
-        host=config.host,
-        model=config.model,
-        timeout=min(config.timeout, 90.0),
-    )
+    # Use a shorter timeout for enrichment — it's non-critical
+    cfg_short = dataclasses.replace(config, timeout=min(config.timeout, 90.0))
+    client = make_llm_client(cfg_short)
 
     user_msg = _USER_TEMPLATE.format(
         user_text=user_text,

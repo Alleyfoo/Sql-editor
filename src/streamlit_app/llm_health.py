@@ -46,6 +46,14 @@ class ProbeResult:
 
 
 def _do_probe(cfg: LLMConfig) -> ProbeResult:
+    provider = (cfg.provider or "ollama").lower()
+    if provider in ("groq", "openai_compatible"):
+        return _probe_openai_compatible(cfg)
+    return _probe_ollama(cfg)
+
+
+def _probe_ollama(cfg: LLMConfig) -> ProbeResult:
+    """Probe an Ollama server via GET /api/tags."""
     url = cfg.host.rstrip("/") + "/api/tags"
     request = Request(url, headers={"Accept": "application/json"})
     try:
@@ -53,44 +61,28 @@ def _do_probe(cfg: LLMConfig) -> ProbeResult:
             body = response.read()
     except HTTPError as exc:
         return ProbeResult(
-            status="offline",
-            host=cfg.host,
-            model=cfg.model,
+            status="offline", host=cfg.host, model=cfg.model,
             detail=f"HTTP {exc.code}: {exc.reason}",
         )
     except URLError as exc:
         return ProbeResult(
-            status="offline",
-            host=cfg.host,
-            model=cfg.model,
+            status="offline", host=cfg.host, model=cfg.model,
             detail=f"unreachable ({exc.reason})",
         )
-    except TimeoutError:
+    except (TimeoutError, OSError) as exc:
         return ProbeResult(
-            status="offline",
-            host=cfg.host,
-            model=cfg.model,
-            detail=f"no response within {_PROBE_TIMEOUT:.0f}s",
-        )
-    except OSError as exc:
-        return ProbeResult(
-            status="offline",
-            host=cfg.host,
-            model=cfg.model,
-            detail=f"transport error: {exc}",
+            status="offline", host=cfg.host, model=cfg.model,
+            detail=str(exc),
         )
 
     try:
         envelope = json.loads(body)
     except json.JSONDecodeError:
         return ProbeResult(
-            status="offline",
-            host=cfg.host,
-            model=cfg.model,
+            status="offline", host=cfg.host, model=cfg.model,
             detail="non-JSON response from /api/tags",
         )
 
-    # Best-effort: confirm the configured model is actually pulled.
     available = []
     if isinstance(envelope, dict):
         for entry in envelope.get("models", []) or []:
@@ -104,7 +96,7 @@ def _do_probe(cfg: LLMConfig) -> ProbeResult:
         name == cfg.model or name.startswith(cfg.model + ":") for name in available
     ):
         detail = (
-            f"server up, but model '{cfg.model}' is not pulled "
+            f"server up, but '{cfg.model}' is not pulled "
             f"(available: {', '.join(available[:4])}"
             + ("…" if len(available) > 4 else "")
             + ")"
@@ -114,7 +106,71 @@ def _do_probe(cfg: LLMConfig) -> ProbeResult:
             detail=detail, available_models=models_tuple,
         )
 
-    return ProbeResult(status="ok", host=cfg.host, model=cfg.model, available_models=models_tuple)
+    return ProbeResult(
+        status="ok", host=cfg.host, model=cfg.model,
+        available_models=models_tuple,
+    )
+
+
+def _probe_openai_compatible(cfg: LLMConfig) -> ProbeResult:
+    """Probe Groq / OpenAI-compatible endpoints via GET /v1/models."""
+    from src.llm.natural_language import GROQ_HOST, GROQ_MODELS
+
+    if not cfg.api_key:
+        return ProbeResult(
+            status="offline", host=cfg.host, model=cfg.model,
+            detail="API key not set",
+        )
+
+    host = GROQ_HOST if cfg.provider == "groq" else cfg.host.rstrip("/")
+    url = host + "/v1/models"
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {cfg.api_key}",
+        },
+    )
+    try:
+        with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
+            body = response.read()
+    except HTTPError as exc:
+        detail = "invalid API key" if exc.code == 401 else f"HTTP {exc.code}"
+        return ProbeResult(
+            status="offline", host=host, model=cfg.model, detail=detail,
+        )
+    except (URLError, TimeoutError, OSError) as exc:
+        return ProbeResult(
+            status="offline", host=host, model=cfg.model, detail=str(exc),
+        )
+
+    try:
+        envelope = json.loads(body)
+    except json.JSONDecodeError:
+        return ProbeResult(
+            status="offline", host=host, model=cfg.model,
+            detail="non-JSON response",
+        )
+
+    # Pull model list from the /v1/models response
+    available = []
+    for entry in (envelope.get("data") or []):
+        mid = entry.get("id") if isinstance(entry, dict) else None
+        if isinstance(mid, str):
+            available.append(mid)
+
+    # Fallback: for Groq, we know the model list
+    if not available and cfg.provider == "groq":
+        available = list(GROQ_MODELS)
+
+    provider_label = "Groq" if cfg.provider == "groq" else host
+    return ProbeResult(
+        status="ok",
+        host=host,
+        model=cfg.model,
+        detail=f"{provider_label} · {len(available)} models",
+        available_models=tuple(available),
+    )
 
 
 def probe_ollama(*, force: bool = False) -> ProbeResult:

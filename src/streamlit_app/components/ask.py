@@ -199,8 +199,17 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
 
     try:
         from src.llm.natural_language import load_llm_config
+        import dataclasses
         cfg_data = load_config()
         llm_cfg = load_llm_config(cfg_data)
+        # Merge session-stored API key (entered in the UI, never written to disk)
+        session_key = (
+            st.session_state.get("_groq_api_key")
+            or st.session_state.get("_oai_api_key")
+            or st.session_state.get("_session_api_key")
+        )
+        if session_key and not llm_cfg.api_key:
+            llm_cfg = dataclasses.replace(llm_cfg, api_key=session_key)
         with st.spinner("Thinking…"):
             result_model = nl_to_query_model(
                 text,
@@ -428,7 +437,15 @@ def _execute_and_compute(
                 results_to_sample_csv,
             )
             with st.spinner("Analysing…"):
+                import dataclasses as _dc
                 cfg = load_llm_config(load_config())
+                session_key = (
+                    st.session_state.get("_groq_api_key")
+                    or st.session_state.get("_oai_api_key")
+                    or st.session_state.get("_session_api_key")
+                )
+                if session_key and not cfg.api_key:
+                    cfg = _dc.replace(cfg, api_key=session_key)
                 sample_csv = results_to_sample_csv(df, max_rows=15)
                 det = enrich_analysis(
                     det,
