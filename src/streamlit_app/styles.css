@@ -65,7 +65,7 @@ button, input, select, textarea {
   gap: 0.3rem !important;
 }
 [data-testid="stSidebar"] hr {
-  margin: 8px 0 !important;
+  margin: 10px 0 10px !important;
 }
 /* All sidebar horizontal blocks: checkbox aligns to top-of-name, not center */
 [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] {
@@ -597,7 +597,6 @@ button, input, select, textarea {
   letter-spacing: .07em;
   text-transform: uppercase;
   color: var(--ink-3);
-  margin-top: 4px;
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line-2);
