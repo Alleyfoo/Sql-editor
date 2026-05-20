@@ -57,8 +57,6 @@ def run() -> None:
     ask.render()
     assistant.render()
 
-    st.markdown("---")
-
     composer_col, preview_col = st.columns([1.15, 1], gap="medium")
     with composer_col:
         st.markdown(

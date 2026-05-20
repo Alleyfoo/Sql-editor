@@ -21,100 +21,98 @@ def render() -> None:
         del st.query_params["fq"]
         st.rerun()
 
+    n_user = sum(1 for e in transcript if e.get("role") == "user")
+    dataset_name = st.session_state.get("dataset_name", "")
     followup_bank: dict = {}
     fq_idx = 0
 
-    n_user = sum(1 for e in transcript if e.get("role") == "user")
-    dataset_name = st.session_state.get("dataset_name", "")
+    with st.container(key="assistant_panel"):
+        # ── Header strip ──────────────────────────────────────────────────
+        head_col, clear_col = st.columns([1, 0.22])
+        with head_col:
+            st.markdown(
+                f'<div class="asst-head">'
+                f'<span class="asst-head-label">Assistant</span>'
+                f'<span class="asst-head-count">'
+                f'{n_user} turn{"s" if n_user != 1 else ""}'
+                f'</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        with clear_col:
+            if st.button("Clear", key="assistant_clear", use_container_width=True):
+                st.session_state.transcript = []
+                st.session_state["_followup_bank"] = {}
+                st.rerun()
 
-    st.markdown("---")
-
-    head_col, clear_col = st.columns([1, 0.22])
-    with head_col:
-        count_html = f'<span class="count">{n_user}</span>' if n_user else ""
-        st.markdown(
-            f'<div class="assistant-head">'
-            f'<span class="label">Assistant</span>'
-            f'{count_html}'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    with clear_col:
-        if st.button("Clear", key="assistant_clear", use_container_width=True):
-            st.session_state.transcript = []
-            st.session_state["_followup_bank"] = {}
-            st.rerun()
-
-    for entry in transcript:
-        role = entry.get("role", "user")
-        if role == "user":
-            with st.chat_message("user"):
-                st.markdown(f"**{entry.get('text', '')}**")
-                ref_html = (
-                    f' · <strong>1 reference:</strong> {dataset_name}'
-                    if dataset_name else ""
-                )
-                st.markdown(
-                    f'<div class="msg-meta">just now{ref_html}</div>',
-                    unsafe_allow_html=True,
-                )
-        else:
-            with st.chat_message("assistant"):
-                error = entry.get("error")
-                routed = entry.get("routed", False)
-                reply = entry.get("reply", "")
-                sql = entry.get("sql", "")
-                det_analysis = entry.get("det_analysis")
-                # Legacy LLM analysis (kept for any old transcript entries)
-                old_analysis = entry.get("analysis")
-
-                if error:
-                    st.error(error)
-                elif routed:
-                    st.markdown(reply)
-                    st.markdown(
-                        '<span class="pill routed">↷ routed to Python</span>',
-                        unsafe_allow_html=True,
-                    )
+        # ── Scrollable transcript ─────────────────────────────────────────
+        with st.container(height=380):
+            for entry in transcript:
+                role = entry.get("role", "user")
+                if role == "user":
+                    with st.chat_message("user"):
+                        st.markdown(f"**{entry.get('text', '')}**")
+                        ref_html = (
+                            f' · <strong>1 reference:</strong> {dataset_name}'
+                            if dataset_name else ""
+                        )
+                        st.markdown(
+                            f'<div class="msg-meta">just now{ref_html}</div>',
+                            unsafe_allow_html=True,
+                        )
                 else:
-                    if reply:
-                        st.markdown(reply)
-                    if sql:
-                        with st.expander("SQL", expanded=False):
-                            from src.streamlit_app.sql_highlight import render_sql_block
+                    with st.chat_message("assistant"):
+                        error = entry.get("error")
+                        routed = entry.get("routed", False)
+                        reply = entry.get("reply", "")
+                        sql = entry.get("sql", "")
+                        det_analysis = entry.get("det_analysis")
+                        old_analysis = entry.get("analysis")
+
+                        if error:
+                            st.error(error)
+                        elif routed:
+                            st.markdown(reply)
                             st.markdown(
-                                f'<div style="background:var(--code-bg);border:1px solid #2a2520;'
-                                f'border-radius:var(--r-2);overflow:hidden;margin:2px 0 4px;">'
-                                f'{render_sql_block(sql)}'
-                                f'</div>',
+                                '<span class="pill routed">↷ routed to Python</span>',
                                 unsafe_allow_html=True,
                             )
+                        else:
+                            if reply:
+                                st.markdown(reply)
+                            if sql:
+                                with st.expander("SQL", expanded=False):
+                                    from src.streamlit_app.sql_highlight import render_sql_block
+                                    st.markdown(
+                                        f'<div style="background:var(--code-bg);border:1px solid #2a2520;'
+                                        f'border-radius:var(--r-2);overflow:hidden;margin:2px 0 4px;">'
+                                        f'{render_sql_block(sql)}'
+                                        f'</div>',
+                                        unsafe_allow_html=True,
+                                    )
 
-                # Structured analysis takes priority; fall back to legacy LLM cards.
-                if det_analysis is not None and not det_analysis.is_empty:
-                    followups = _render_det_analysis(det_analysis, fq_idx)
-                    for i, q in enumerate(followups):
-                        followup_bank[str(fq_idx + i)] = q
-                    fq_idx += len(followups)
-                elif old_analysis:
-                    followups = _render_legacy_analysis(old_analysis, fq_idx)
-                    for i, q in enumerate(followups):
-                        followup_bank[str(fq_idx + i)] = q
-                    fq_idx += len(followups)
+                        if det_analysis is not None and not det_analysis.is_empty:
+                            followups = _render_det_analysis(det_analysis, fq_idx)
+                            for i, q in enumerate(followups):
+                                followup_bank[str(fq_idx + i)] = q
+                            fq_idx += len(followups)
+                        elif old_analysis:
+                            followups = _render_legacy_analysis(old_analysis, fq_idx)
+                            for i, q in enumerate(followups):
+                                followup_bank[str(fq_idx + i)] = q
+                            fq_idx += len(followups)
 
-    st.session_state["_followup_bank"] = followup_bank
+        st.session_state["_followup_bank"] = followup_bank
 
 
 def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
     """Render a DeterministicAnalysis into headline + cards + chips."""
-    # Headline callout — bold finding above the cards
     if det.headline:
         st.markdown(
             f'<div class="headline-callout">{det.headline.text}</div>',
             unsafe_allow_html=True,
         )
 
-    # Insight cards — single HTML grid, no Streamlit column machinery
     insights = det.insights[:3]
     if insights:
         cards_html = ""

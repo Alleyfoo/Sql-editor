@@ -974,6 +974,77 @@ button, input, select, textarea {
   border-style: solid;
 }
 
+/* ── Assistant panel ─────────────────────────────────────────────────────── */
+.st-key-assistant_panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.st-key-assistant_panel > div > [data-testid="stVerticalBlock"] {
+  gap: 0 !important;
+}
+/* Header strip */
+[data-testid="stHorizontalBlock"]:has(.asst-head) {
+  padding: 8px 14px !important;
+  background: #FDFCF8 !important;
+  border-bottom: 1px solid var(--line-2) !important;
+  align-items: center !important;
+}
+[data-testid="stHorizontalBlock"]:has(.asst-head) .stButton button {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+.asst-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.asst-head-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.asst-head-count {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  background: var(--line-2);
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+/* Strip the default border from st.container(height=N) inside the panel */
+.st-key-assistant_panel [data-testid="stVerticalBlockBorderWrapper"] {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* Scale down insight cards to fit panel width */
+.st-key-assistant_panel .insights-grid {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.st-key-assistant_panel .insight-card {
+  padding: 8px 10px;
+}
+.st-key-assistant_panel .insight-value {
+  font-size: 13.5px;
+}
+.st-key-assistant_panel .followups-row {
+  margin-top: 8px;
+  gap: 4px;
+}
+.st-key-assistant_panel .followup-chip {
+  font-size: 11.5px;
+  padding: 3px 9px;
+}
+
 /* ── Chat messages ──────────────────────────────────────────────────────── */
 [data-testid="stChatMessage"] {
   border-radius: var(--r-3) !important;
