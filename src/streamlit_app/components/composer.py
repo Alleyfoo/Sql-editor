@@ -63,7 +63,19 @@ def _section(num: int, title: str, summary: str = "",
     return st.expander(label, expanded=expanded)
 
 
-def _refresh_sql(model: QueryModel) -> None:
+def _refresh_sql(model: QueryModel, *, from_user: bool = False) -> None:
+    """Regenerate last_sql from the model.
+
+    When from_user=True the caller is a direct user interaction (widget
+    change inside the composer) — the raw-SQL lock is cleared and the SQL
+    is regenerated.  When from_user=False (passive end-of-render call) we
+    skip regeneration if an externally-set raw SQL is locked in, so quick
+    queries and NL results are not overwritten on every rerun.
+    """
+    if from_user:
+        st.session_state.pop("_raw_sql_lock", None)
+    elif st.session_state.get("_raw_sql_lock", False):
+        return
     try:
         st.session_state.last_sql = model.to_sql()
     except ValueError as exc:
@@ -87,7 +99,7 @@ def _select_section(schema, model: QueryModel, cols: List[str]) -> None:
         )
         if new_sel != sel:
             model.selected_columns = new_sel
-            _refresh_sql(model)
+            _refresh_sql(model, from_user=True)
             st.rerun()
 
 
@@ -207,11 +219,13 @@ def _filter_rows_ui(schema, cols, row_key: str, target_list: list) -> None:
     if to_remove is not None:
         rows.pop(to_remove)
         st.session_state[row_key] = rows
+        st.session_state.pop("_raw_sql_lock", None)
         st.rerun()
 
     if st.button("＋ Add condition", key=f"{row_key}_add"):
         rows.append({"column": cols[0], "operator": "=", "value": "", "logical": "AND"})
         st.session_state[row_key] = rows
+        st.session_state.pop("_raw_sql_lock", None)
         st.rerun()
 
     # Sync to model
@@ -253,7 +267,7 @@ def _group_agg_section(schema, model: QueryModel, cols: List[str]) -> None:
         )
         if new_grp != list(model.group_by):
             model.group_by = new_grp
-            _refresh_sql(model)
+            _refresh_sql(model, from_user=True)
             st.rerun()
 
         st.markdown('<div class="cs-subhead">Aggregations</div>', unsafe_allow_html=True)

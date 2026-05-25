@@ -49,6 +49,7 @@ def reset_query() -> None:
     ss.having_rows = []
     ss.order_rows = []
     ss.agg_rows = []
+    ss.pop("_raw_sql_lock", None)
 
 
 def append_transcript(entry: Dict[str, Any]) -> None:

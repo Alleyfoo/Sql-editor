@@ -145,6 +145,7 @@ def _apply_quick_query(qq: QuickQuery, schema: dict) -> None:
         ss.last_sql = qq.sql
         ss.results_df = None
         ss.last_exec_ms = None
+        ss["_raw_sql_lock"] = True   # prevent composer from overwriting with stale model
         state.append_transcript({
             "role": "assistant",
             "reply": f"{qq.label} — review the SQL and press Run.",
@@ -198,6 +199,7 @@ def _apply_quick_query(qq: QuickQuery, schema: dict) -> None:
     ss.results_df = None
     ss.last_exec_ms = None
 
+    _sync_composer_widgets(model)
     state.append_transcript(
         {
             "role": "assistant",
@@ -209,6 +211,21 @@ def _apply_quick_query(qq: QuickQuery, schema: dict) -> None:
         }
     )
     st.rerun()
+
+
+def _sync_composer_widgets(model) -> None:
+    """Push a new QueryModel's fields into the composer widget session-state keys.
+
+    Must be called BEFORE st.rerun() so the values are set before the
+    composer's multiselect/number_input widgets are instantiated on the
+    next render.  Without this the widgets return stale cached values and
+    overwrite the freshly-assigned model.
+    """
+    st.session_state["select_multiselect"] = list(model.selected_columns)
+    st.session_state["group_by_multiselect"] = list(model.group_by)
+    st.session_state["limit_input"] = model.limit if model.limit is not None else 1000
+    # Clear any raw-SQL lock — this model is now the source of truth
+    st.session_state.pop("_raw_sql_lock", None)
 
 
 def _handle_ask(text: str, run_llm_analysis: bool) -> None:
@@ -316,6 +333,7 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
             run_llm_analysis=True,
         )
 
+    _sync_composer_widgets(result_model)
     state.append_transcript(
         {
             "role": "assistant",
@@ -420,6 +438,7 @@ def _apply_heuristic_result(
             run_llm_analysis=True,
         )
 
+    _sync_composer_widgets(model)
     state.append_transcript(
         {
             "role": "assistant",
