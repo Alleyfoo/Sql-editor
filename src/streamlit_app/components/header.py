@@ -317,7 +317,7 @@ def _render_ollama_section(cfg, provider: str) -> None:
 
 def _render_groq_section(cfg) -> None:
     from src.llm.natural_language import GROQ_MODELS
-    from src.streamlit_app.llm_health import clear_cache
+    from src.streamlit_app.llm_health import clear_cache, probe_ollama
 
     _label("API Key")
     stored = st.session_state.get("_groq_api_key", cfg.api_key or "")
@@ -328,6 +328,7 @@ def _render_groq_section(cfg) -> None:
     )
     if new_key != stored:
         st.session_state["_groq_api_key"] = new_key
+        st.session_state.pop("_groq_test_result", None)  # stale result no longer valid
         _sync_session_api_key(cfg)
         clear_cache()
         st.rerun()
@@ -350,8 +351,29 @@ def _render_groq_section(cfg) -> None:
         st.rerun()
 
     if st.button("↺ Test connection", key="llm_groq_test", use_container_width=True):
+        # Probe inline — no explicit st.rerun() so the popover stays open.
+        # The button click already triggers a natural rerun; the result stored
+        # in session state is shown below on the same pass.
         clear_cache()
-        st.rerun()
+        probe = probe_ollama(force=True)
+        if probe.ok:
+            st.session_state["_groq_test_result"] = (
+                "ok",
+                f"Connected · {probe.detail or probe.model}",
+            )
+        else:
+            st.session_state["_groq_test_result"] = (
+                "error",
+                probe.detail or "Connection failed",
+            )
+
+    _test = st.session_state.get("_groq_test_result")
+    if _test:
+        kind, msg = _test
+        if kind == "ok":
+            st.success(msg)
+        else:
+            st.error(msg)
 
 
 def _render_openai_compatible_section(cfg) -> None:
