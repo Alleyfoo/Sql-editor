@@ -1117,6 +1117,36 @@ hr.dashed-sep {
   text-align: center;
 }
 
+/* ── Follow-up chip buttons ────────────────────────────────────── */
+/* Target any container whose class contains "st-key-fq_chips" so we
+   don't have to enumerate individual entry indices.                   */
+[class*="st-key-fq_chips"] button[kind="secondary"] {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 3px 10px !important;
+  border-radius: 12px !important;
+  border: 1px solid #C2410C !important;
+  background: #FFF7ED !important;
+  color: #C2410C !important;
+  white-space: nowrap !important;
+  min-height: 0 !important;
+  line-height: 1.4 !important;
+  width: auto !important;
+  box-shadow: none !important;
+}
+
+[class*="st-key-fq_chips"] button[kind="secondary"]:hover {
+  background: #FFEDD5 !important;
+  border-color: #9A3412 !important;
+  color: #9A3412 !important;
+}
+
+/* Remove the column gap so chips sit tighter */
+[class*="st-key-fq_chips"] [data-testid="column"] {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+}
+
 /* ── Right chat column ─────────────────────────────────────────── */
 .chat-panel-header {
   font-size: 11px;

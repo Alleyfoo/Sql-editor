@@ -134,23 +134,33 @@ def _render_det_analysis(det, entry_idx: int, fq_idx: int) -> int:
 
 
 def _render_followup_chips(questions: List[str], entry_idx: int, fq_idx: int) -> int:
-    """Render follow-up questions as Streamlit buttons (not <a href> links).
+    """Render follow-up questions as small pill-chip buttons, 3 per row.
+
+    Wrapped in a keyed container so styles.css can target the buttons via
+    [class*="st-key-fq_chips"] without enumerating individual keys.
 
     Returns the updated fq_idx after rendering all buttons.
-    Using st.button avoids the URL query-param round-trip that causes
-    session-state timing issues and broken chips.
     """
     if not questions:
         return fq_idx
-    for i, q in enumerate(questions):
-        btn_key = f"fq_{entry_idx}_{fq_idx + i}"
-        if st.button(f"→ {q}", key=btn_key):
-            # Use nl_prefill, not nl_text_input — the text widget is already
-            # instantiated at this point. ask.render() translates nl_prefill
-            # → nl_text_input on the next run, before the widget renders.
-            st.session_state["nl_prefill"] = q
-            st.session_state["nl_auto_submit"] = True
-            st.rerun()
+
+    per_row = 3
+    with st.container(key=f"fq_chips_{entry_idx}"):
+        for row_start in range(0, len(questions), per_row):
+            batch = questions[row_start : row_start + per_row]
+            cols = st.columns(per_row)
+            for col_i, (col, q) in enumerate(zip(cols, batch)):
+                btn_idx = fq_idx + row_start + col_i
+                btn_key = f"fq_{entry_idx}_{btn_idx}"
+                with col:
+                    if st.button(f"→ {q}", key=btn_key):
+                        # Use nl_prefill, not nl_text_input — the text widget
+                        # is already instantiated at this point. ask.render()
+                        # translates nl_prefill → nl_text_input on next run,
+                        # before the widget renders.
+                        st.session_state["nl_prefill"] = q
+                        st.session_state["nl_auto_submit"] = True
+                        st.rerun()
     return fq_idx + len(questions)
 
 
