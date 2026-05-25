@@ -241,6 +241,7 @@ def _render_model_selector() -> None:
     )
     if selected_provider != current:
         _save_field_to_config("provider", selected_provider)
+        st.session_state.pop("_cached_provider", None)  # invalidate ask-bar cache
         clear_cache()
         st.rerun()
 

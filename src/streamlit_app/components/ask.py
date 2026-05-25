@@ -30,15 +30,19 @@ def render() -> None:
         # Header line: pulse dot + label + model info
         transcript = st.session_state.get("transcript", [])
         n_turns = sum(1 for m in transcript if m.get("role") == "user")
-        # Show provider-aware label rather than always saying "local model"
-        from src.config import load_config as _load_config
-        from src.llm.natural_language import load_llm_config as _load_llm_cfg
-        _provider = (_load_llm_cfg(_load_config() or {}).provider or "ollama").lower()
+        # Provider label: read config.yaml once per session, cache in session state.
+        # header.py invalidates "_cached_provider" whenever the provider changes.
+        if "_cached_provider" not in st.session_state:
+            from src.config import load_config as _load_config
+            from src.llm.natural_language import load_llm_config as _load_llm_cfg
+            st.session_state["_cached_provider"] = (
+                _load_llm_cfg(_load_config() or {}).provider or "ollama"
+            ).lower()
         _provider_label = {
             "groq": "Groq",
             "openai_compatible": "API",
             "ollama_remote": "remote Ollama",
-        }.get(_provider, "local model")
+        }.get(st.session_state["_cached_provider"], "local model")
         st.markdown(
             f'<div class="ask-model-line">'
             f'<span class="pulse"></span>'
