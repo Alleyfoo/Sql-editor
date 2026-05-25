@@ -312,8 +312,18 @@ class OpenAICompatibleClient:
             with urlopen(request, timeout=self.timeout) as response:  # nosec
                 body = response.read()
         except HTTPError as exc:
+            # Read the response body so we can surface Groq/OpenAI's
+            # human-readable error message instead of just the status line.
+            try:
+                err_body = exc.read().decode("utf-8", errors="replace")
+                err_data = json.loads(err_body)
+                groq_msg = (err_data.get("error") or {}).get("message", "")
+            except Exception:
+                groq_msg = ""
+            detail = groq_msg or exc.reason or ""
             raise LLMError(
-                f"API returned HTTP {exc.code}: {exc.reason}"
+                f"API returned HTTP {exc.code}"
+                + (f": {detail}" if detail else "")
             ) from exc
         except URLError as exc:
             raise LLMError(
