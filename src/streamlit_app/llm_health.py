@@ -140,14 +140,15 @@ def _probe_openai_compatible(cfg: LLMConfig) -> ProbeResult:
                 status="offline", host=host, model=cfg.model,
                 detail="invalid API key",
             )
-        if exc.code == 403 and cfg.provider == "groq":
-            # Groq returns 403 on /v1/models for some key tiers — the key
-            # itself is valid (401 would mean wrong key).  Fall back to the
-            # known model list and report connected.
+        if exc.code == 403:
+            # 403 = key format accepted but access denied.
+            # Common causes: account not verified, key revoked, or
+            # the account needs phone verification at console.groq.com.
+            # We cannot tell from the status alone whether completions
+            # will work, so report offline with an actionable hint.
             return ProbeResult(
-                status="ok", host=host, model=cfg.model,
-                detail=f"Groq · {len(GROQ_MODELS)} models",
-                available_models=GROQ_MODELS,
+                status="offline", host=host, model=cfg.model,
+                detail="access denied (403) — verify your account at console.groq.com",
             )
         return ProbeResult(
             status="offline", host=host, model=cfg.model,

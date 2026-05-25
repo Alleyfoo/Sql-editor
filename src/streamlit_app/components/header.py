@@ -374,6 +374,12 @@ def _render_groq_section(cfg) -> None:
             st.success(msg)
         else:
             st.error(msg)
+            if "403" in msg or "access denied" in msg.lower():
+                st.caption(
+                    "💡 Go to [console.groq.com](https://console.groq.com), "
+                    "check your account is verified, and confirm the key "
+                    "is copied in full (starts with `gsk_`)."
+                )
 
 
 def _render_openai_compatible_section(cfg) -> None:
