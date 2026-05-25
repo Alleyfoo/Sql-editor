@@ -7,8 +7,80 @@ from typing import Dict, Optional
 import streamlit as st
 
 from src.history import DEFAULT_HISTORY_PATH
-from src.streamlit_app.components import composer
 from src.streamlit_app.components.ask import render_quick_queries
+
+
+@st.dialog("Query Composer", width="large")
+def _composer_dialog() -> None:
+    """Full query composer rendered inside a modal dialog.
+
+    Flushes any pending widget sync (queued by ask/_sync_composer_widgets)
+    before composer.render() instantiates the keyed widgets.
+    """
+    if pending := st.session_state.pop("_pending_composer_sync", None):
+        for _k, _v in pending.items():
+            st.session_state[_k] = _v
+    from src.streamlit_app.components import composer
+    composer.render()
+
+
+def _render_composer_summary() -> None:
+    """Mini query-builder card in the sidebar.
+
+    Shows selected columns + active filter count.  An 'Open Composer'
+    button launches the full composer in a modal dialog so the narrow
+    sidebar never has to host the 5-section form.
+    """
+    model = st.session_state.get("model")
+    schema = st.session_state.get("schema", {})
+    has_data = bool(schema)
+
+    st.markdown(
+        '<div class="schema-section-head"><span>Query Builder</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    if not has_data:
+        st.markdown(
+            '<div style="font-size:12px;color:#B8B0A2;">Load a dataset to compose queries.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    selected = list(model.selected_columns) if model else []
+    n_filters = len(model.filters) if model else 0
+    n_aggs = len(model.aggregations) if model else 0
+    n_order = len(model.order_by) if model else 0
+
+    # Build a compact one-line summary of the active query state
+    parts = []
+    if selected:
+        col_summary = ", ".join(selected[:3])
+        if len(selected) > 3:
+            col_summary += f" +{len(selected) - 3}"
+        parts.append(f"**SELECT** {col_summary}")
+    if n_filters:
+        parts.append(f"**{n_filters}** filter{'s' if n_filters != 1 else ''}")
+    if n_aggs:
+        parts.append(f"**{n_aggs}** agg{'s' if n_aggs != 1 else ''}")
+    if n_order:
+        parts.append(f"**{n_order}** sort")
+
+    if parts:
+        st.markdown(
+            '<div style="font-size:11.5px;color:#57514A;margin-bottom:8px;line-height:1.6;">'
+            + " &middot; ".join(parts)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div style="font-size:11.5px;color:#B8B0A2;margin-bottom:8px;">No query composed yet.</div>',
+            unsafe_allow_html=True,
+        )
+
+    if st.button("⚙️ Open Composer", key="sidebar_open_composer", width="stretch"):
+        _composer_dialog()
 
 
 def _render_quick_queries_section(schema: dict, has_data: bool) -> None:
@@ -46,8 +118,7 @@ def render() -> None:
             st.divider()
         _render_quick_queries_section(schema, has_data=bool(schema))
         st.divider()
-        with st.expander("🔧 Query Composer", expanded=False):
-            composer.render()
+        _render_composer_summary()
         st.divider()
         _render_recent_runs()
 

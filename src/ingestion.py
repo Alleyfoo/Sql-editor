@@ -44,6 +44,27 @@ _TEXT_NAME_HINTS: tuple[str, ...] = (
     "group",
 )
 
+# Column-name prefixes that indicate a boolean flag.  Values are always 0/1
+# or True/False — treated as text so they show a "txt" badge rather than
+# "num" and are not picked as aggregation targets.
+_BOOL_NAME_PREFIXES: tuple[str, ...] = (
+    "is_",   # is_active, is_valid, is_deleted …
+    "has_",  # has_discount, has_error …
+    "can_",  # can_refund …
+    "was_",  # was_shipped …
+)
+
+# Column-name suffixes that also indicate a boolean flag.
+_BOOL_NAME_SUFFIXES: tuple[str, ...] = (
+    "_pass",     # quality_pass …
+    "_fail",     # quality_fail …
+    "_flag",     # promo_flag …
+    "_active",   # is handled by prefix too, belt-and-suspenders
+    "_enabled",  # feature_enabled …
+    "_valid",    # card_valid …
+    "_complete", # order_complete …
+)
+
 # SQLite authorizer action codes we allow on the read-only connection.
 # Anything else is denied. Action codes: https://www.sqlite.org/c3ref/c_alter_table.html
 _ALLOWED_ACTIONS = frozenset(
@@ -67,6 +88,9 @@ def _infer_column_type(series: pd.Series) -> str:
         # floats (encoded category codes, numeric product IDs, etc.).
         col_lower = str(series.name).lower()
         if any(hint in col_lower for hint in _TEXT_NAME_HINTS):
+            return "text"
+        if (any(col_lower.startswith(pfx) for pfx in _BOOL_NAME_PREFIXES)
+                or any(col_lower.endswith(sfx) for sfx in _BOOL_NAME_SUFFIXES)):
             return "text"
         return "numeric"
     if pd.api.types.is_datetime64_any_dtype(series):
