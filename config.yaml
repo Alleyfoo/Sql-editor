@@ -1,16 +1,10 @@
 app:
-  window_title: "Visual Query Builder"
   default_limit: 1000
   max_preview_rows: 1000
-
+  window_title: Visual Query Builder
 llm:
-  # Env vars override these at runtime:
-  #   OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_TIMEOUT
-  # Pattern mirrors Alleyfoo/Support-triage-llm app/config.py.
-  provider: ollama
-  model: gemma4:latest
-  host: http://localhost:11434
-  timeout: 120
-  # Number of prior Q/A turns to include as context in each prompt.
-  # Keeps prompts bounded; set to 0 to disable history.
   history_depth: 6
+  host: http://localhost:11434
+  model: qwen2.5-coder:7b
+  provider: ollama
+  timeout: 120

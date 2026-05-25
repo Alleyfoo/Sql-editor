@@ -22,7 +22,13 @@ eval/reports/
 .idea/
 .vscode/
 .claude/
+.windsurf/
 
-# Local benchmark datasets (kept out of git)
+# Session / internal notes
+.handoff.md
+progress.txt
+
+# Local benchmark datasets (large, not needed for the app)
 data/pdf_inputs/
-data/open_data/2021-04.csv
+data/open_data/
+eval/golden/open_data/distilled/
