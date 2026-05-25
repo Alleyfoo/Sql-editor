@@ -14,7 +14,9 @@ plus LLM-written narrative — all running on your machine with no data leaving 
 - **Ask a question** → a local Qwen model generates a structured query plan (JSON, not SQL)
 - **Inspect the SQL** → the plan is converted to SQL and shown before anything runs
 - **Click Run** → results appear with insight cards, charts, and a summary tab
-- **Ask + Analyze** → after running, the LLM writes a 2–3 sentence interpretation and suggests follow-up questions
+- **Ask + Analyze** → runs a full analysis pipeline: profiles the result, infers the
+  analysis type (trend / segment / KPI / dashboard), asks the LLM for a grounded
+  insight report, and picks the right chart type automatically
 
 The LLM never touches the database. It only produces a query plan that gets
 validated against your schema, converted to SQL by trusted Python code, and
@@ -114,8 +116,9 @@ and HAVING. The LLM populates it; you can tweak it before running.
 **SQL Preview** — shows the exact SQL that will run. Nothing executes until you
 click **▶ Run query**.
 
-**Model selector** — click **⚙ LLM model** in the top bar to switch between
-locally pulled Ollama models without editing `config.yaml`.
+**Model selector** — click **⚙ LLM model** in the top bar to switch providers:
+local Ollama, remote Ollama, [Groq](https://console.groq.com) (free cloud tier),
+or any OpenAI-compatible API. API keys are session-only — never written to disk.
 
 ---
 
@@ -139,8 +142,9 @@ This tool will never modify your data. Six layers enforce this:
    `DETACH`, `PRAGMA`, `REPLACE`, `TRUNCATE`, `EXEC`, `EXECUTE`, `GRANT`,
    `REVOKE`.
 
-**No data leaves your machine.** Ollama runs locally, SQLite is in-memory,
-and the app makes no external network calls.
+**No data leaves your machine** when using local Ollama. If you switch to a cloud
+provider (Groq, OpenAI-compatible), the result sample sent to the LLM for "Ask +
+Analyze" is limited to 15 rows of query output — never the full dataset.
 
 ---
 
@@ -159,6 +163,7 @@ sql-editor/
 ├── streamlit_app.py              # Entry point
 ├── config.yaml                   # App + LLM settings
 ├── requirements.txt
+├── WORKFLOWS.md                  # Agentic pipeline architecture guide
 ├── data/
 │   └── demo/
 │       ├── sample_sales.csv      # Built-in demo dataset (3 000 rows)
@@ -171,21 +176,40 @@ sql-editor/
 │   ├── history.py                # Query history logger
 │   ├── config.py                 # YAML config loader
 │   ├── llm/
-│   │   └── natural_language.py   # Ollama client + JSON → QueryModel
+│   │   └── natural_language.py   # Multi-provider LLM client + JSON → QueryModel
+│   ├── analysis_lane/            # Phase 4 analysis pipeline
+│   │   ├── engine.py             # AnalysisCoordinator — profiling → insights → charts
+│   │   ├── models.py             # AnalysisProfile, InsightReport, ChartSpec, etc.
+│   │   ├── profiler.py           # Deterministic data profiler
+│   │   └── validation.py         # Guardrail checks for claims and chart specs
+│   ├── mixed_execution/          # Query routing engine (SQL/Python/hybrid)
+│   ├── orchestration/            # Multi-worker coordination runtime
 │   └── streamlit_app/
 │       ├── app.py                # Page layout
 │       ├── styles.css            # Design tokens + component styles
-│       ├── insight_engine.py     # Deterministic insight cards
-│       ├── insight_enrichment.py # Phase 4c LLM narrative layer
+│       ├── insight_engine.py     # Deterministic insight cards (always-on)
+│       ├── insight_enrichment.py # Lightweight LLM narrative (Ask path)
 │       ├── quick_queries.py      # Schema-aware offline query templates
 │       ├── demo_dataset.py       # Demo CSV loader
 │       └── components/
-│           ├── ask.py            # NL input + quick queries
-│           ├── assistant.py      # Conversation panel
+│           ├── ask.py            # NL input, quick queries, analysis wiring
+│           ├── assistant.py      # Conversation + insight card panel
 │           ├── composer.py       # Visual query builder
-│           ├── header.py         # Top bar + file upload + model selector
-│           ├── results.py        # Results table + chart + summary tabs
+│           ├── header.py         # Top bar, file upload, multi-provider selector
+│           ├── results.py        # Results table + coordinator chart + summary tabs
 │           ├── sidebar.py        # Schema explorer + recent runs
 │           └── sql_preview.py    # SQL display + Run button
 └── tests/
 ```
+
+---
+
+## Roadmap
+
+| Phase | Status | What shipped |
+|---|---|---|
+| 1 — Core query engine | ✅ done | CSV ingestion, QueryModel, read-only SQLite, blocklist |
+| 2 — Visual composer | ✅ done | Filter / GROUP BY / ORDER BY builder, SQL preview |
+| 3 — NL + heuristic | ✅ done | Ollama integration, offline heuristic fast-path, quick queries |
+| 4 — Deep analysis | ✅ done | AnalysisCoordinator pipeline, multi-provider LLM, smart chart selection |
+| 5 — Multi-source | 🔜 next | Load multiple CSVs, visual JOIN composer, cross-dataset queries |
