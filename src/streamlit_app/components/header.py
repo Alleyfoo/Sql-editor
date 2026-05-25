@@ -352,11 +352,12 @@ def _label(text: str, *, top_margin: bool = False) -> None:
 
 def _save_field_to_config(field: str, value: str) -> None:
     """Write a single llm.* field to config.yaml."""
-    from pathlib import Path
     import yaml
-    path = Path("config.yaml")
+    from src.config import DEFAULT_CONFIG_PATH
+    path = DEFAULT_CONFIG_PATH
     try:
-        cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        existing = path.read_text(encoding="utf-8") if path.exists() else ""
+        cfg = yaml.safe_load(existing) or {}
         if not isinstance(cfg, dict):
             cfg = {}
         if "llm" not in cfg:

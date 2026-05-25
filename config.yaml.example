@@ -1,0 +1,23 @@
+# Query Studio — local configuration template
+# Copy this file to config.yaml and edit as needed.
+# config.yaml is never deployed; keep your keys and host URLs here.
+
+app:
+  default_limit: 1000       # default row limit for new queries
+  max_preview_rows: 1000    # rows shown in the results table
+  window_title: Query Studio
+
+llm:
+  # ── Local Ollama (default) ────────────────────────────────────────
+  provider: ollama
+  host: http://localhost:11434
+  model: qwen2.5-coder:7b   # any model you have pulled: `ollama list`
+  timeout: 120               # seconds before the request times out
+
+  # ── Remote Ollama (another machine on your network) ───────────────
+  # provider: ollama_remote
+  # host: http://192.168.1.50:11434
+  # model: llama3.1:8b
+  # timeout: 180
+
+  history_depth: 6           # conversation turns kept in LLM context

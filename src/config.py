@@ -14,7 +14,10 @@ from typing import Any, Dict
 import yaml
 
 
-DEFAULT_CONFIG_PATH = Path("config.yaml")
+# Resolve relative to the repo root (two parents up from src/config.py)
+# so the path is stable regardless of the working directory Streamlit
+# is launched from.
+DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
