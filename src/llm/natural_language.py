@@ -190,6 +190,7 @@ class OllamaClient:
             ],
             "format": "json",
             "stream": False,
+            "think": False,   # disable extended thinking (deepseek-r1, qwq, etc.)
             "options": {"temperature": 0.0},
         }
         data = json.dumps(payload).encode("utf-8")
