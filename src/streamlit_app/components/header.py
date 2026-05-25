@@ -204,7 +204,7 @@ _PROVIDERS = {
 
 
 def _render_model_selector() -> None:
-    from src.llm.natural_language import GROQ_MODELS, load_llm_config
+    from src.llm.natural_language import load_llm_config
     from src.streamlit_app.llm_health import clear_cache
 
     cfg = load_llm_config(load_config())
