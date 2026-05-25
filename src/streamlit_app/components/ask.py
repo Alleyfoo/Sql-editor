@@ -19,10 +19,13 @@ def render() -> None:
     has_data = bool(st.session_state.get("conn"))
     schema = st.session_state.get("schema", {})
 
-    # Pre-fill from follow-up chip click
-    prefill = st.session_state.get("nl_prefill", "")
+    # Pre-fill from follow-up chip click.
+    # Must set the widget's session-state key directly — passing value= to a
+    # keyed text_input is ignored once the widget is initialised.
+    prefill = st.session_state.pop("nl_prefill", "")
+    auto_submit = st.session_state.pop("nl_auto_submit", False)
     if prefill:
-        st.session_state["nl_prefill"] = ""
+        st.session_state["nl_text_input"] = prefill
 
     with st.container(border=True):
         st.markdown('<span class="ask-anchor" style="display:none"></span>',
@@ -58,7 +61,6 @@ def render() -> None:
         with col_input:
             text = st.text_input(
                 "ask",
-                value=prefill,
                 label_visibility="collapsed",
                 placeholder=(
                     "e.g. monthly revenue trend 2024, "
@@ -87,7 +89,7 @@ def render() -> None:
     # Quick queries outside the ask card so the card stays compact
     _render_quick_queries(schema, has_data)
 
-    if (ask_clicked or analyze_clicked) and text.strip():
+    if (ask_clicked or analyze_clicked or auto_submit) and text.strip():
         _handle_ask(text.strip(), run_llm_analysis=analyze_clicked)
 
 

@@ -18,6 +18,7 @@ def render() -> None:
         text = bank.get(fq)
         if text:
             st.session_state["nl_prefill"] = text
+            st.session_state["nl_auto_submit"] = True
         del st.query_params["fq"]
         st.rerun()
 
