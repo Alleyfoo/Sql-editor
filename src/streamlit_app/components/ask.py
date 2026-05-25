@@ -211,16 +211,23 @@ def _apply_quick_query(qq: QuickQuery, schema: dict) -> None:
 
 
 def _sync_composer_widgets(model) -> None:
-    """Push a new QueryModel's fields into the composer widget session-state keys.
+    """Schedule composer widget state to be flushed before the next render.
 
-    Must be called BEFORE st.rerun() so the values are set before the
-    composer's multiselect/number_input widgets are instantiated on the
-    next render.  Without this the widgets return stale cached values and
-    overwrite the freshly-assigned model.
+    The composer now lives in the sidebar, which runs before ask.render().
+    That means the widgets are already instantiated when ask's button
+    handlers fire, so we can't set them directly here (Streamlit raises
+    StreamlitAPIException).
+
+    Instead we stash the desired values under a neutral key
+    ``_pending_composer_sync``.  sidebar.render() pops that key and applies
+    the values at the very top of its body, before composer.render()
+    instantiates any widgets.
     """
-    st.session_state["select_multiselect"] = list(model.selected_columns)
-    st.session_state["group_by_multiselect"] = list(model.group_by)
-    st.session_state["limit_input"] = model.limit if model.limit is not None else 1000
+    st.session_state["_pending_composer_sync"] = {
+        "select_multiselect": list(model.selected_columns),
+        "group_by_multiselect": list(model.group_by),
+        "limit_input": model.limit if model.limit is not None else 1000,
+    }
     # Clear any raw-SQL lock — this model is now the source of truth
     st.session_state.pop("_raw_sql_lock", None)
 

@@ -20,6 +20,12 @@ def _render_quick_queries_section(schema: dict, has_data: bool) -> None:
 
 
 def render() -> None:
+    # Flush any pending composer widget state queued by ask/_sync_composer_widgets.
+    # Must happen before composer.render() instantiates the keyed widgets.
+    if pending := st.session_state.pop("_pending_composer_sync", None):
+        for _k, _v in pending.items():
+            st.session_state[_k] = _v
+
     schema: Dict[str, str] = st.session_state.get("schema", {})
     meta: dict = st.session_state.get("dataset_meta", {})
     dataset_name: Optional[str] = st.session_state.get("dataset_name")
