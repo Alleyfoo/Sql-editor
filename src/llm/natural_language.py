@@ -253,6 +253,56 @@ class OllamaClient:
 
         return parsed
 
+    def generate_text(self, system: str, user: str) -> str:
+        """POST a chat request and return the model's plain-text response.
+
+        Like ``generate_json`` but without ``format: json`` — used for
+        multi-table SQL generation where the model should return raw SQL.
+        """
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0.0},
+        }
+        data = json.dumps(payload).encode("utf-8")
+        url = self.host + "/api/chat"
+        request = Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as response:  # nosec
+                body = response.read()
+        except HTTPError as exc:
+            raise LLMError(f"Ollama returned HTTP {exc.code}: {exc.reason}") from exc
+        except URLError as exc:
+            raise LLMError(
+                f"could not reach Ollama at {self.host}: {exc.reason}"
+            ) from exc
+        except TimeoutError as exc:
+            raise LLMError(
+                f"Ollama request timed out after {self.timeout:.0f}s"
+            ) from exc
+        except OSError as exc:
+            raise LLMError(f"Ollama transport error: {exc}") from exc
+
+        try:
+            envelope = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"Ollama response was not JSON: {exc}") from exc
+
+        message = envelope.get("message") or {}
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise LLMError("Ollama response contained no message content")
+        return content.strip()
+
 
 # ---------------------------------------------------------------------------
 # OpenAI-compatible client (Groq, OpenAI, any /v1/chat/completions endpoint)
@@ -1128,6 +1178,126 @@ def nl_to_query_model(
     return model
 
 
+# ---------------------------------------------------------------------------
+# Multi-table SQL generation
+# ---------------------------------------------------------------------------
+
+_MULTITABLE_SYSTEM = (
+    "You are a SQLite expert. Given a database schema and a user question, "
+    "write a single read-only SELECT query. "
+    "Return ONLY the SQL statement — no explanation, no markdown, no code fences. "
+    "Use table aliases. Only use SELECT."
+)
+
+_SQL_DANGER = frozenset(
+    w.upper() for w in
+    ("INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE",
+     "TRUNCATE", "ATTACH", "DETACH", "PRAGMA", "VACUUM")
+)
+
+
+def _detect_join_hints(tables_schema: Dict[str, Dict[str, str]]) -> List[str]:
+    """Return human-readable JOIN hints auto-detected from shared _id columns.
+
+    Only columns whose names end in ``_id`` (or equal ``id``) and that
+    appear in more than one table are considered foreign keys.  The first
+    table in insertion order that owns the column is treated as the primary
+    (referenced) side.
+    """
+    id_col_tables: Dict[str, List[str]] = {}
+    for table, schema in tables_schema.items():
+        for col in schema:
+            if col == "id" or col.endswith("_id"):
+                id_col_tables.setdefault(col, []).append(table)
+
+    hints: List[str] = []
+    for col, tables in id_col_tables.items():
+        if len(tables) > 1:
+            primary = tables[0]
+            for other in tables[1:]:
+                hints.append(f"{other}.{col} = {primary}.{col}")
+    return hints
+
+
+def _build_multitable_prompt(
+    nl: str,
+    tables_schema: Dict[str, Dict[str, str]],
+    history: Optional[List[tuple]] = None,
+) -> str:
+    """Compose the user turn for multi-table SQL generation."""
+    lines: List[str] = ["Available tables:"]
+    for table, schema in tables_schema.items():
+        lines.append(f"\nTABLE {table}:")
+        for col, ctype in schema.items():
+            lines.append(f"  {col} ({ctype})")
+
+    join_hints = _detect_join_hints(tables_schema)
+    if join_hints:
+        lines.append("\nDetected relationships (use for JOINs):")
+        for hint in join_hints:
+            lines.append(f"  {hint}")
+
+    if history:
+        lines.append("\nRecent conversation (oldest first):")
+        for q, sql in history:
+            lines.append(f"  Q: {q}")
+            lines.append(f"  SQL: {sql[:120]}{'...' if len(sql) > 120 else ''}")
+
+    lines.append(f"\nQuestion: {nl}")
+    lines.append("\nWrite a single SQLite SELECT query:")
+    return "\n".join(lines)
+
+
+def _validate_raw_sql(sql: str) -> str:
+    """Strip markdown fences, assert SELECT-only.  Returns cleaned SQL."""
+    s = sql.strip()
+    # Strip ```sql … ``` or ``` … ``` fences
+    if s.startswith("```"):
+        inner = s.splitlines()
+        inner = inner[1:]
+        if inner and inner[-1].strip() == "```":
+            inner = inner[:-1]
+        s = "\n".join(inner).strip()
+    first_word = s.split()[0].upper() if s.split() else ""
+    if first_word != "SELECT":
+        raise LLMError(f"model returned non-SELECT statement (starts with '{first_word}')")
+    tokens = {t.upper().rstrip(";,(") for t in s.split()}
+    blocked = _SQL_DANGER & tokens
+    if blocked:
+        raise LLMError(f"model SQL contains disallowed keyword(s): {blocked}")
+    return s
+
+
+def nl_to_raw_sql(
+    nl: str,
+    tables_schema: Dict[str, Dict[str, str]],
+    *,
+    client: Optional[OllamaClient] = None,
+    config: Optional["LLMConfig"] = None,
+    history: Optional[List[tuple]] = None,
+) -> str:
+    """Translate a natural-language question into a raw SQLite SELECT query
+    for a multi-table dataset.
+
+    Returns the validated SQL string. Raises :class:`LLMError` on failure.
+    ``history`` should be a list of ``(question, sql)`` tuples (recent first
+    is fine; the prompt shows them oldest-first by reversing).
+    """
+    if not isinstance(nl, str) or not nl.strip():
+        raise LLMError("natural-language request is empty")
+    if not tables_schema:
+        raise LLMError("no table schemas provided")
+
+    if client is None:
+        cfg = config or load_llm_config({})
+        client = make_llm_client(cfg)
+
+    ordered_history = list(reversed(history)) if history else []
+    user_prompt = _build_multitable_prompt(nl.strip(), tables_schema, history=ordered_history)
+    raw = client.generate_text(_MULTITABLE_SYSTEM, user_prompt)
+    return _validate_raw_sql(raw)
+
+
 __all__ = [
     "LLMError",
     "RouteToPythonError",
@@ -1138,5 +1308,6 @@ __all__ = [
     "detect_python_route_reason",
     "load_llm_config",
     "nl_to_query_model",
+    "nl_to_raw_sql",
     "parse_query_plan",
 ]

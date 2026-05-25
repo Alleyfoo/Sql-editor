@@ -232,24 +232,120 @@ def _sync_composer_widgets(model) -> None:
     st.session_state.pop("_raw_sql_lock", None)
 
 
+def _handle_ask_multitable(
+    text: str,
+    tables: dict,
+    *,
+    run_llm_analysis: bool,
+) -> None:
+    """NL Ask path for multi-table datasets — generates raw SQL with JOINs.
+
+    Uses nl_to_raw_sql() which sends the full multi-table schema + auto-
+    detected FK relationships to the LLM and expects a plain SELECT back.
+    The SQL is put in the preview panel for review (same as quick queries).
+    """
+    from src.config import load_config
+    from src.llm.natural_language import LLMError, load_llm_config, nl_to_raw_sql
+    from src.streamlit_app import state
+
+    probe = probe_ollama(force=True)
+    if not probe.ok:
+        state.append_transcript(
+            {
+                "role": "assistant",
+                "reply": "",
+                "sql": "",
+                "det_analysis": None,
+                "error": (
+                    "LLM offline. For cross-table queries use the Quick Query buttons "
+                    "in the sidebar — they run entirely offline."
+                ),
+            }
+        )
+        st.rerun()
+        return
+
+    try:
+        cfg_data = load_config()
+        llm_cfg = load_llm_config(cfg_data)
+        # History for multi-table: pass recent (question, sql) pairs so the
+        # LLM can resolve follow-up references like "also filter by category".
+        mt_history = [
+            (e.get("text", ""), "")
+            for e in st.session_state.get("transcript", [])[-6:]
+            if e.get("role") == "user"
+        ]
+        with st.spinner("Thinking…"):
+            sql = nl_to_raw_sql(
+                text,
+                tables,
+                config=llm_cfg,
+                history=mt_history,
+            )
+    except LLMError as exc:
+        state.append_transcript(
+            {
+                "role": "assistant",
+                "reply": "",
+                "sql": "",
+                "det_analysis": None,
+                "error": str(exc),
+            }
+        )
+        st.toast(str(exc), icon="⚠️")
+        st.rerun()
+        return
+
+    ss = st.session_state
+    ss.last_sql = sql
+    ss.results_df = None
+    ss.last_exec_ms = None
+    ss["_raw_sql_lock"] = True
+
+    det_analysis = None
+    if run_llm_analysis:
+        det_analysis = _execute_and_compute(
+            sql, ss.model,
+            text=text,
+            schema=next(iter(tables.values())),
+            run_llm_analysis=True,
+        )
+
+    state.append_transcript(
+        {
+            "role": "assistant",
+            "reply": f"Here's a query across your tables — review the SQL and press Run.",
+            "sql": sql,
+            "det_analysis": det_analysis,
+            "error": None,
+            "source": "multitable_nl",
+        }
+    )
+    state.push_nl_history(text, "Cross-table query generated.")
+    st.rerun()
+
+
 def _handle_ask(text: str, run_llm_analysis: bool) -> None:
     from src.config import load_config
     from src.llm.natural_language import LLMError, RouteToPythonError, nl_to_query_model
     from src.streamlit_app import state
 
-    # For multi-table datasets, scope NL queries to the primary table so the
-    # LLM doesn't hallucinate cross-table columns into a single "data" table.
     tables: dict = st.session_state.get("tables", {})
-    if tables:
-        primary_table = next(iter(tables))
-        schema = tables[primary_table]
-    else:
-        primary_table = "data"
-        schema = st.session_state.schema
     history = st.session_state.nl_history
-    model = st.session_state.model
 
     state.append_transcript({"role": "user", "text": text})
+
+    # ── Multi-table path (supply chain demo or any multi-CSV load) ────────
+    # Skip heuristic (single-table only) and go straight to LLM with the
+    # full multi-table schema + auto-detected JOIN hints.
+    if tables:
+        _handle_ask_multitable(text, tables, run_llm_analysis=run_llm_analysis)
+        return
+
+    # ── Single-table path ─────────────────────────────────────────────────
+    primary_table = "data"
+    schema = st.session_state.schema
+    model = st.session_state.model
 
     # Heuristic fast-path before LLM.  Force a fresh probe on each Ask
     # so the status pill reflects current Ollama state, not a stale cache.
