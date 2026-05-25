@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import urllib.parse
+import html
 from typing import List, Optional
 
 import streamlit as st
@@ -155,7 +155,7 @@ def _render_followup_chips(questions: List[str], fq_start: int) -> None:
         return
     chips_html = "".join(
         f'<a href="?fq={fq_start + i}" class="followup-chip">'
-        f'→ {urllib.parse.escape(q)}'
+        f'→ {html.escape(q)}'
         f'</a>'
         for i, q in enumerate(questions)
     )
