@@ -48,7 +48,7 @@ def render() -> None:
             data=csv_bytes,
             file_name="query_result.csv",
             mime="text/csv",
-            use_container_width=True,
+            width='stretch',
         )
 
     table_tab, chart_tab, summary_tab, json_tab = st.tabs(
@@ -125,7 +125,7 @@ def _render_table(df: pd.DataFrame) -> None:
     st.dataframe(
         display_df,
         column_config=col_cfg,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
 

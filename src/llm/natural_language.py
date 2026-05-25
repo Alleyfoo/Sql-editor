@@ -295,7 +295,6 @@ class OpenAICompatibleClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "response_format": {"type": "json_object"},
             "temperature": 0.0,
         }
         data = json.dumps(payload).encode("utf-8")

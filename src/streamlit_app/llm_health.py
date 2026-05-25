@@ -199,9 +199,9 @@ def probe_ollama(*, force: bool = False) -> ProbeResult:
     # Merge session-stored API key so cloud providers show correct status
     # even when the key has never been written to disk.
     session_key = (
-        st.session_state.get("_groq_api_key")
-        or st.session_state.get("_oai_api_key")
-        or st.session_state.get("_session_api_key")
+        (st.session_state.get("_groq_api_key") or "").strip()
+        or (st.session_state.get("_oai_api_key") or "").strip()
+        or (st.session_state.get("_session_api_key") or "").strip()
     )
     if session_key and not cfg.api_key:
         import dataclasses

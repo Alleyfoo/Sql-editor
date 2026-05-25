@@ -108,7 +108,7 @@ def render() -> None:
 
     # File upload in a popover
     with csv_col:
-        with st.popover("Open CSV", use_container_width=True):
+        with st.popover("Open CSV", width='stretch'):
             uploaded = st.file_uploader(
                 "Choose a CSV file",
                 type=["csv"],
@@ -129,13 +129,13 @@ def render() -> None:
             if st.button(
                 "Load demo dataset",
                 key="load_demo_btn",
-                use_container_width=True,
+                width='stretch',
             ):
                 _handle_demo_load()
 
     # LLM model selector
     with llm_col:
-        with st.popover("⚙ LLM model", use_container_width=True):
+        with st.popover("⚙ LLM model", width='stretch'):
             _render_model_selector()
 
 
@@ -288,7 +288,7 @@ def _render_ollama_section(cfg, provider: str) -> None:
             f'Ollama not reachable at <code>{cfg.host}</code>.</div>',
             unsafe_allow_html=True,
         )
-        if st.button("↺ Retry", key="llm_retry", use_container_width=True):
+        if st.button("↺ Retry", key="llm_retry", width='stretch'):
             clear_cache()
             st.rerun()
         return
@@ -310,7 +310,7 @@ def _render_ollama_section(cfg, provider: str) -> None:
         f'{len(models)} model{"s" if len(models) != 1 else ""} pulled</div>',
         unsafe_allow_html=True,
     )
-    if st.button("↺ Refresh", key="llm_refresh", use_container_width=True):
+    if st.button("↺ Refresh", key="llm_refresh", width='stretch'):
         clear_cache()
         st.rerun()
 
@@ -326,8 +326,8 @@ def _render_groq_section(cfg) -> None:
         key="llm_groq_key_input", label_visibility="collapsed",
         placeholder="gsk_…",
     )
-    if new_key != stored:
-        st.session_state["_groq_api_key"] = new_key
+    if new_key.strip() != stored:
+        st.session_state["_groq_api_key"] = new_key.strip()  # strip whitespace from paste
         st.session_state.pop("_groq_test_result", None)  # stale result no longer valid
         _sync_session_api_key(cfg)
         clear_cache()
@@ -350,7 +350,7 @@ def _render_groq_section(cfg) -> None:
         clear_cache()
         st.rerun()
 
-    if st.button("↺ Test connection", key="llm_groq_test", use_container_width=True):
+    if st.button("↺ Test connection", key="llm_groq_test", width='stretch'):
         # Probe inline — no explicit st.rerun() so the popover stays open.
         # The button click already triggers a natural rerun; the result stored
         # in session state is shown below on the same pass.

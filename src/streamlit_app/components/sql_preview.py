@@ -47,14 +47,14 @@ def render() -> None:
         run = st.button(
             "▶ Run query",
             type="primary",
-            use_container_width=True,
+            width='stretch',
             disabled=not (has_conn and sql_valid),
             key="run_button",
         )
     with explain_col:
         explain = st.button(
             "Explain",
-            use_container_width=True,
+            width='stretch',
             disabled=not sql_valid,
             key="explain_button",
         )

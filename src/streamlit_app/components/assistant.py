@@ -40,7 +40,7 @@ def render() -> None:
                 unsafe_allow_html=True,
             )
         with clear_col:
-            if st.button("Clear", key="assistant_clear", use_container_width=True):
+            if st.button("Clear", key="assistant_clear", width='stretch'):
                 st.session_state.transcript = []
                 st.session_state["_followup_bank"] = {}
                 st.rerun()

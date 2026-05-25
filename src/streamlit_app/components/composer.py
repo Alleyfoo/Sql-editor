@@ -34,11 +34,11 @@ def render() -> None:
             )
         with btn_col:
             rc, sc = st.columns(2, gap="small")
-            if rc.button("Reset", key="cp_reset", use_container_width=True):
+            if rc.button("Reset", key="cp_reset", width='stretch'):
                 from src.streamlit_app import state
                 state.reset_query()
                 st.rerun()
-            sc.button("Save ↗", key="cp_save", disabled=True, use_container_width=True)
+            sc.button("Save ↗", key="cp_save", disabled=True, width='stretch')
 
         _select_section(schema, model, cols)
         _where_section(schema, model, cols)

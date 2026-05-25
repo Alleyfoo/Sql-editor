@@ -71,14 +71,14 @@ def render() -> None:
         with col_ask:
             ask_clicked = st.button(
                 "Ask",
-                use_container_width=True,
+                width='stretch',
                 disabled=not has_data,
                 key="btn_ask",
             )
         with col_analyze:
             analyze_clicked = st.button(
                 "Ask + Analyze",
-                use_container_width=True,
+                width='stretch',
                 type="primary",
                 disabled=not has_data,
                 key="btn_analyze",
@@ -120,7 +120,7 @@ def _render_quick_queries(schema: dict, has_data: bool) -> None:
                     qq.label,
                     key=qq.key,
                     help=qq.description,
-                    use_container_width=True,
+                    width='stretch',
                 ):
                     _apply_quick_query(qq, schema)
 
@@ -217,9 +217,9 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
         llm_cfg = load_llm_config(cfg_data)
         # Merge session-stored API key (entered in the UI, never written to disk)
         session_key = (
-            st.session_state.get("_groq_api_key")
-            or st.session_state.get("_oai_api_key")
-            or st.session_state.get("_session_api_key")
+            (st.session_state.get("_groq_api_key") or "").strip()
+            or (st.session_state.get("_oai_api_key") or "").strip()
+            or (st.session_state.get("_session_api_key") or "").strip()
         )
         if session_key and not llm_cfg.api_key:
             llm_cfg = dataclasses.replace(llm_cfg, api_key=session_key)
