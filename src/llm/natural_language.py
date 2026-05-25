@@ -223,7 +223,7 @@ class OllamaClient:
         try:
             with urlopen(
                 request, timeout=self.timeout
-            ) as response:  # nosec - local inference endpoint
+            ) as response:  # nosec - user-configured inference endpoint
                 body = response.read()
         except HTTPError as exc:
             raise LLMError(f"Ollama returned HTTP {exc.code}: {exc.reason}") from exc

@@ -25,7 +25,7 @@ from src.config import load_config
 from src.llm.natural_language import LLMConfig, load_llm_config
 
 
-_PROBE_TIMEOUT = 2.0
+_PROBE_TIMEOUT = 5.0  # generous enough for remote Ollama over the internet
 _SESSION_KEY = "_llm_probe_result"
 _CACHE_TTL = 30.0  # seconds before a re-probe is triggered
 
