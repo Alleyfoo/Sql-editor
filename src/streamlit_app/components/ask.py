@@ -290,6 +290,8 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
     try:
         sql = result_model.to_sql()
         st.session_state.last_sql = sql
+        st.session_state.results_df = None   # clear stale results
+        st.session_state.last_exec_ms = None
     except ValueError as exc:
         state.append_transcript(
             {
@@ -304,11 +306,15 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
         st.rerun()
         return
 
-    det_analysis = _execute_and_compute(
-        sql, result_model,
-        text=text, schema=schema,
-        run_llm_analysis=run_llm_analysis,
-    )
+    # Plain Ask → SQL goes to the editor panel for review; user clicks Run.
+    # Ask + Analyze → execute immediately so the LLM can analyse the results.
+    det_analysis = None
+    if run_llm_analysis:
+        det_analysis = _execute_and_compute(
+            sql, result_model,
+            text=text, schema=schema,
+            run_llm_analysis=True,
+        )
 
     state.append_transcript(
         {
@@ -402,12 +408,17 @@ def _apply_heuristic_result(
         st.rerun()
         return
 
-    det_analysis = _execute_and_compute(
-        sql, model,
-        text=text,
-        schema=st.session_state.schema,
-        run_llm_analysis=(run_llm_analysis and llm_available),
-    )
+    st.session_state.results_df = None
+    st.session_state.last_exec_ms = None
+
+    det_analysis = None
+    if run_llm_analysis and llm_available:
+        det_analysis = _execute_and_compute(
+            sql, model,
+            text=text,
+            schema=st.session_state.schema,
+            run_llm_analysis=True,
+        )
 
     state.append_transcript(
         {
