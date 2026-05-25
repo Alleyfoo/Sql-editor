@@ -1,0 +1,63 @@
+supplier_id,supplier_name,country,rating,lead_time_days,payment_terms,on_time_delivery_pct,product_id
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1023
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1007
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1027
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1010
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1013
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1022
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1021
+S101,Nordic Tech Supply,Finland,3.6,19,Net 60,84.7,P1012
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1017
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1015
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1004
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1008
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1024
+S102,Baltic Components Ltd,Germany,2.8,43,Net 90,94.4,P1003
+S103,EastEuro Parts,Estonia,3.8,15,Net 60,80.8,P1001
+S103,EastEuro Parts,Estonia,3.8,15,Net 60,80.8,P1019
+S103,EastEuro Parts,Estonia,3.8,15,Net 60,80.8,P1018
+S103,EastEuro Parts,Estonia,3.8,15,Net 60,80.8,P1008
+S103,EastEuro Parts,Estonia,3.8,15,Net 60,80.8,P1003
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1021
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1002
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1008
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1003
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1026
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1011
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1024
+S104,TechLink GmbH,Sweden,2.9,36,Net 30,87.4,P1017
+S105,ScandiSource AB,Poland,3.7,10,Net 90,95.5,P1009
+S105,ScandiSource AB,Poland,3.7,10,Net 90,95.5,P1022
+S105,ScandiSource AB,Poland,3.7,10,Net 90,95.5,P1016
+S105,ScandiSource AB,Poland,3.7,10,Net 90,95.5,P1007
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1005
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1024
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1019
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1025
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1016
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1008
+S106,Iberian Electronics SA,Spain,4.6,22,Net 60,71.7,P1023
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1007
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1004
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1026
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1022
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1014
+S107,Alpine IT Supplies,Austria,4.7,8,Net 30,91.2,P1012
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1014
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1015
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1024
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1002
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1022
+S108,Adriatic Hardware,Croatia,4.5,37,Net 60,73.7,P1021
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1004
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1002
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1013
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1024
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1011
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1027
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1008
+S109,Benelux Tech BV,Netherlands,3.7,38,Net 60,77.7,P1007
+S110,Celtic Systems Ltd,Ireland,4.7,30,Net 60,96.9,P1018
+S110,Celtic Systems Ltd,Ireland,4.7,30,Net 60,96.9,P1015
+S110,Celtic Systems Ltd,Ireland,4.7,30,Net 60,96.9,P1005
+S110,Celtic Systems Ltd,Ireland,4.7,30,Net 60,96.9,P1014

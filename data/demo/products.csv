@@ -1,0 +1,28 @@
+product_id,product_name,category,unit_cost,unit_price,weight_kg,is_active
+P1001,Laptop Pro 15,Electronics,516.95,691.43,3.37,1
+P1002,Wireless Headset,Electronics,593.13,1373.13,10.72,1
+P1003,4K Monitor,Electronics,346.21,465.55,2.7,1
+P1004,USB-C Hub,Electronics,35.83,57.27,7.83,1
+P1005,Webcam HD,Electronics,188.05,410.68,9.73,1
+P1006,Mechanical Keyboard,Electronics,647.57,1519.98,4.15,1
+P1007,Ergonomic Mouse,Electronics,766.41,1383.29,1.2,1
+P1008,Analytics Platform,Software,680.28,1500.42,9.7,1
+P1009,Security Suite,Software,435.94,1203.05,4.6,1
+P1010,CRM License,Software,666.08,1483.88,10.35,1
+P1011,ERP Module,Software,568.09,777.57,2.81,1
+P1012,Dev Toolchain,Software,77.64,128.04,1.3,1
+P1013,BI Dashboard,Software,514.01,949.5,4.51,1
+P1014,Monitor Arm,Accessories,224.58,607.48,7.81,1
+P1015,Cable Management Kit,Accessories,149.34,357.47,2.04,1
+P1016,Laptop Stand,Accessories,791.78,1789.42,6.73,1
+P1017,Desk Organiser,Accessories,676.64,1667.24,2.83,1
+P1018,Screen Cleaner Kit,Accessories,262.63,446.89,2.61,0
+P1019,Server Rack Unit,Hardware,702.95,1245.64,7.9,1
+P1020,Network Switch 24-port,Hardware,732.92,1457.25,3.25,1
+P1021,SSD 1TB,Hardware,455.67,771.96,7.06,1
+P1022,RAM 32GB DDR5,Hardware,328.53,535.17,11.97,1
+P1023,NVMe Enclosure,Hardware,86.36,118.37,1.4,1
+P1024,Onboarding Package,Services,636.78,1231.05,0.86,1
+P1025,Extended Warranty,Services,796.96,1668.57,11.66,1
+P1026,Remote Support Hours,Services,24.01,57.17,8.21,1
+P1027,Training Bundle,Services,224.46,507.6,1.43,1
