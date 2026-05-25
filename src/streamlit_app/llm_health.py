@@ -135,9 +135,23 @@ def _probe_openai_compatible(cfg: LLMConfig) -> ProbeResult:
         with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
             body = response.read()
     except HTTPError as exc:
-        detail = "invalid API key" if exc.code == 401 else f"HTTP {exc.code}"
+        if exc.code == 401:
+            return ProbeResult(
+                status="offline", host=host, model=cfg.model,
+                detail="invalid API key",
+            )
+        if exc.code == 403 and cfg.provider == "groq":
+            # Groq returns 403 on /v1/models for some key tiers — the key
+            # itself is valid (401 would mean wrong key).  Fall back to the
+            # known model list and report connected.
+            return ProbeResult(
+                status="ok", host=host, model=cfg.model,
+                detail=f"Groq · {len(GROQ_MODELS)} models",
+                available_models=GROQ_MODELS,
+            )
         return ProbeResult(
-            status="offline", host=host, model=cfg.model, detail=detail,
+            status="offline", host=host, model=cfg.model,
+            detail=f"HTTP {exc.code}",
         )
     except (URLError, TimeoutError, OSError) as exc:
         return ProbeResult(
