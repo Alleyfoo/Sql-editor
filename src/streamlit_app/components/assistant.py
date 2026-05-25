@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import html
 from typing import List, Optional
 
 import streamlit as st
@@ -11,20 +10,8 @@ def render() -> None:
     if not transcript:
         return
 
-    # Handle follow-up chip click via ?fq=N query param
-    fq = st.query_params.get("fq")
-    if fq is not None:
-        bank: dict = st.session_state.get("_followup_bank", {})
-        text = bank.get(fq)
-        if text:
-            st.session_state["nl_prefill"] = text
-            st.session_state["nl_auto_submit"] = True
-        del st.query_params["fq"]
-        st.rerun()
-
     n_user = sum(1 for e in transcript if e.get("role") == "user")
     dataset_name = st.session_state.get("dataset_name", "")
-    followup_bank: dict = {}
     fq_idx = 0
 
     with st.container(key="assistant_panel"):
@@ -105,21 +92,16 @@ def render() -> None:
                                         _inline_run(sql)
 
                         if det_analysis is not None and not det_analysis.is_empty:
-                            followups = _render_det_analysis(det_analysis, fq_idx)
-                            for i, q in enumerate(followups):
-                                followup_bank[str(fq_idx + i)] = q
-                            fq_idx += len(followups)
+                            fq_idx = _render_det_analysis(det_analysis, entry_idx, fq_idx)
                         elif old_analysis:
-                            followups = _render_legacy_analysis(old_analysis, fq_idx)
-                            for i, q in enumerate(followups):
-                                followup_bank[str(fq_idx + i)] = q
-                            fq_idx += len(followups)
-
-        st.session_state["_followup_bank"] = followup_bank
+                            fq_idx = _render_legacy_analysis(old_analysis, entry_idx, fq_idx)
 
 
-def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
-    """Render a DeterministicAnalysis into headline + cards + prose + chips."""
+def _render_det_analysis(det, entry_idx: int, fq_idx: int) -> int:
+    """Render a DeterministicAnalysis into headline + cards + prose + chips.
+
+    Returns the updated fq_idx after rendering follow-up buttons.
+    """
     if det.headline:
         st.markdown(
             f'<div class="headline-callout">{det.headline.text}</div>',
@@ -159,23 +141,25 @@ def _render_det_analysis(det, fq_start: int = 0) -> List[str]:
             st.warning(w)
 
     questions = det.next_questions[:5] if det.next_questions else []
-    _render_followup_chips(questions, fq_start)
-    return questions
+    return _render_followup_chips(questions, entry_idx, fq_idx)
 
 
-def _render_followup_chips(questions: List[str], fq_start: int) -> None:
+def _render_followup_chips(questions: List[str], entry_idx: int, fq_idx: int) -> int:
+    """Render follow-up questions as Streamlit buttons (not <a href> links).
+
+    Returns the updated fq_idx after rendering all buttons.
+    Using st.button avoids the URL query-param round-trip that causes
+    session-state timing issues and broken chips.
+    """
     if not questions:
-        return
-    chips_html = "".join(
-        f'<a href="?fq={fq_start + i}" class="followup-chip">'
-        f'→ {html.escape(q)}'
-        f'</a>'
-        for i, q in enumerate(questions)
-    )
-    st.markdown(
-        f'<div class="followups-row">{chips_html}</div>',
-        unsafe_allow_html=True,
-    )
+        return fq_idx
+    for i, q in enumerate(questions):
+        btn_key = f"fq_{entry_idx}_{fq_idx + i}"
+        if st.button(f"→ {q}", key=btn_key):
+            st.session_state["nl_text_input"] = q
+            st.session_state["nl_auto_submit"] = True
+            st.rerun()
+    return fq_idx + len(questions)
 
 
 def _inline_run(sql: str) -> None:
@@ -204,8 +188,11 @@ def _inline_run(sql: str) -> None:
         st.error(f"Unexpected error: {exc}")
 
 
-def _render_legacy_analysis(analysis, fq_start: int = 0) -> List[str]:
-    """Render the old ResultAnalysis shape (backward compat for pre-4b entries)."""
+def _render_legacy_analysis(analysis, entry_idx: int, fq_idx: int) -> int:
+    """Render the old ResultAnalysis shape (backward compat for pre-4b entries).
+
+    Returns the updated fq_idx after rendering follow-up buttons.
+    """
     insights = analysis.insights[:3] if analysis.insights else []
     if insights:
         cols = st.columns(min(len(insights), 3))
@@ -233,5 +220,4 @@ def _render_legacy_analysis(analysis, fq_start: int = 0) -> List[str]:
             st.warning(w)
 
     questions = analysis.next_questions[:3] if analysis.next_questions else []
-    _render_followup_chips(questions, fq_start)
-    return questions
+    return _render_followup_chips(questions, entry_idx, fq_idx)

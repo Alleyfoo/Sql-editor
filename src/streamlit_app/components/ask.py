@@ -19,13 +19,9 @@ def render() -> None:
     has_data = bool(st.session_state.get("conn"))
     schema = st.session_state.get("schema", {})
 
-    # Pre-fill from follow-up chip click.
-    # Must set the widget's session-state key directly — passing value= to a
-    # keyed text_input is ignored once the widget is initialised.
-    prefill = st.session_state.pop("nl_prefill", "")
+    # Follow-up chip buttons set nl_text_input + nl_auto_submit directly in
+    # session state before rerun, so we just read auto_submit here.
     auto_submit = st.session_state.pop("nl_auto_submit", False)
-    if prefill:
-        st.session_state["nl_text_input"] = prefill
 
     with st.container(border=True):
         st.markdown('<span class="ask-anchor" style="display:none"></span>',
