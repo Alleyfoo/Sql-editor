@@ -94,6 +94,119 @@ def _run_query(sql: str) -> None:
 
 
 def _explain_sql(sql: str) -> None:
+    """Produce a specific plain-English breakdown of the current query.
+
+    Uses the QueryModel from session state when available so the explanation
+    refers to actual column names, values, and aggregations rather than
+    generic clause descriptions.
+    """
+    model = st.session_state.get("model")
+    if model is not None and hasattr(model, "table"):
+        _explain_from_model(model, sql)
+    else:
+        _explain_from_sql_text(sql)
+
+
+def _explain_from_model(model, sql: str) -> None:
+    """Generate explanation from the structured QueryModel."""
+    steps = []
+
+    # ── Source ──────────────────────────────────────────────────────────────
+    dataset_meta = st.session_state.get("dataset_meta", {})
+    row_count = dataset_meta.get("rows")
+    row_hint = f" ({row_count:,} rows)" if row_count else ""
+    steps.append(("📂 Source", f"Reading from **`{model.table}`**{row_hint}."))
+
+    # ── Filters (WHERE) ──────────────────────────────────────────────────────
+    if model.filters:
+        parts = []
+        for f in model.filters:
+            op = f.operator.upper()
+            if op in ("IS NULL", "IS NOT NULL"):
+                parts.append(f"`{f.column}` {op.lower()}")
+            elif op == "BETWEEN" and isinstance(f.value, tuple):
+                parts.append(f"`{f.column}` between `{f.value[0]}` and `{f.value[1]}`")
+            elif op == "LIKE":
+                parts.append(f"`{f.column}` matches `{f.value}`")
+            else:
+                parts.append(f"`{f.column}` {op} `{f.value}`")
+        joined = f" **{model.filters[1].logical}** ".join(parts) if len(parts) > 1 else parts[0]
+        steps.append(("🔍 Filter", f"Keep only rows where {joined}."))
+
+    # ── Aggregations + GROUP BY ──────────────────────────────────────────────
+    if model.aggregations:
+        agg_parts = []
+        for a in model.aggregations:
+            fn = a.function.upper()
+            col = a.column
+            alias = a.alias
+            if fn == "COUNT" and col == "*":
+                label = "count all rows"
+            elif fn == "COUNT DISTINCT":
+                label = f"count unique **`{col}`**"
+            else:
+                label = f"{fn.lower()} of **`{col}`**"
+            if alias:
+                label += f" → `{alias}`"
+            agg_parts.append(label)
+
+        agg_desc = "Calculate: " + ", ".join(agg_parts) + "."
+        if model.group_by:
+            agg_desc += f" Grouped by **`{'`, `'.join(model.group_by)}`**."
+        steps.append(("∑ Aggregate", agg_desc))
+
+    elif model.group_by:
+        steps.append(("⬡ Group", f"Group rows by **`{'`, `'.join(model.group_by)}`**."))
+
+    # ── Selected columns ─────────────────────────────────────────────────────
+    if model.selected_columns:
+        non_grouped = [
+            c for c in model.selected_columns
+            if c not in (model.group_by or [])
+            and not any(
+                (a.alias or a.display_name) == c for a in (model.aggregations or [])
+            )
+        ]
+        if non_grouped:
+            steps.append(("📋 Columns", f"Return **`{'`, `'.join(non_grouped)}`**."))
+
+    # ── HAVING ───────────────────────────────────────────────────────────────
+    if model.having:
+        having_parts = []
+        for h in model.having:
+            having_parts.append(f"`{h.column}` {h.operator} `{h.value}`")
+        steps.append(("▽ Having", f"After grouping, keep only where {', '.join(having_parts)}."))
+
+    # ── ORDER BY ─────────────────────────────────────────────────────────────
+    if model.order_by:
+        sort_parts = [
+            f"**`{col}`** {'↑ ascending' if d.upper() == 'ASC' else '↓ descending'}"
+            for col, d in model.order_by
+        ]
+        steps.append(("↕ Sort", "Sort by " + ", then ".join(sort_parts) + "."))
+
+    # ── LIMIT ─────────────────────────────────────────────────────────────────
+    if model.limit:
+        steps.append(("✂ Limit", f"Return at most **{model.limit:,}** rows."))
+
+    # ── Render ───────────────────────────────────────────────────────────────
+    for icon_label, desc in steps:
+        icon, label = icon_label.split(" ", 1)
+        st.markdown(
+            f'<div style="display:flex;gap:10px;align-items:flex-start;'
+            f'margin-bottom:8px;padding:8px 12px;background:#F7F5F0;'
+            f'border-radius:6px;border-left:3px solid #C2410C;">'
+            f'<span style="font-size:15px;line-height:1.4;">{icon}</span>'
+            f'<div><span style="font-size:10px;font-weight:700;letter-spacing:.07em;'
+            f'text-transform:uppercase;color:#8E867B;">{label}</span>'
+            f'<div style="font-size:13px;color:#1A1714;margin-top:2px;">{desc}</div>'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+
+
+def _explain_from_sql_text(sql: str) -> None:
+    """Fallback: split by SQL keywords and show each clause."""
     lines = sql.split()
     clauses, current = [], []
     keywords = {"SELECT", "FROM", "WHERE", "GROUP", "HAVING", "ORDER", "LIMIT"}
@@ -106,17 +219,6 @@ def _explain_sql(sql: str) -> None:
     if current:
         clauses.append(" ".join(current))
 
-    descriptions = {
-        "SELECT": "Chooses which columns to return.",
-        "FROM": "Specifies the source table.",
-        "WHERE": "Filters rows before grouping.",
-        "GROUP BY": "Groups rows sharing the same values.",
-        "HAVING": "Filters groups after aggregation.",
-        "ORDER BY": "Sorts the result set.",
-        "LIMIT": "Caps the number of rows returned.",
-    }
     for clause in clauses:
         keyword = clause.split()[0].upper()
-        desc = descriptions.get(keyword, "")
-        st.markdown(f"**`{keyword}`** — {desc}")
         st.code(clause, language="sql")
