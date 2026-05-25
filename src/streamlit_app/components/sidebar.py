@@ -7,6 +7,16 @@ from typing import Dict, Optional
 import streamlit as st
 
 from src.history import DEFAULT_HISTORY_PATH
+from src.streamlit_app.components import composer
+from src.streamlit_app.components.ask import render_quick_queries
+
+
+def _render_quick_queries_section(schema: dict, has_data: bool) -> None:
+    st.markdown(
+        '<div class="schema-section-head"><span>Quick Queries</span></div>',
+        unsafe_allow_html=True,
+    )
+    render_quick_queries(schema, has_data)
 
 
 def render() -> None:
@@ -28,6 +38,11 @@ def render() -> None:
         elif schema:
             _render_schema_profile(schema)
             st.divider()
+        _render_quick_queries_section(schema, has_data=bool(schema))
+        st.divider()
+        with st.expander("🔧 Query Composer", expanded=False):
+            composer.render()
+        st.divider()
         _render_recent_runs()
 
 

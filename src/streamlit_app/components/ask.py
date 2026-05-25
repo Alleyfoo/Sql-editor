@@ -86,14 +86,11 @@ def render() -> None:
                 key="btn_analyze",
             )
 
-    # Quick queries outside the ask card so the card stays compact
-    _render_quick_queries(schema, has_data)
-
     if (ask_clicked or analyze_clicked or auto_submit) and text.strip():
         _handle_ask(text.strip(), run_llm_analysis=analyze_clicked)
 
 
-def _render_quick_queries(schema: dict, has_data: bool) -> None:
+def render_quick_queries(schema: dict, has_data: bool) -> None:
     if has_data and st.session_state.get("tables"):
         quicks: List[QuickQuery] = build_supply_chain_quick_queries()
     elif has_data:

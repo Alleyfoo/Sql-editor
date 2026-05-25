@@ -7,7 +7,6 @@ from src.streamlit_app.styles import inject_css
 from src.streamlit_app.components import (
     ask,
     assistant,
-    composer,
     header,
     results,
     schema_strip,
@@ -34,7 +33,7 @@ def _render_statusbar() -> None:
           <span>route: <strong>{route}</strong></span>
           <span>history: <strong>{hist_path}</strong></span>
           <div class="sb-right">
-            <span>v0.6 · Phase 4</span>
+            <span>v0.7 · Phase 5</span>
             <span>built with Streamlit</span>
           </div>
         </div>
@@ -55,28 +54,22 @@ def run() -> None:
 
     sidebar.render()
     header.render()
-    ask.render()
     schema_strip.render()
-    assistant.render()
 
-    composer_col, preview_col = st.columns([1.15, 1], gap="medium")
-    with composer_col:
-        st.markdown(
-            '<div style="font-size:11px;font-weight:600;letter-spacing:.07em;'
-            'text-transform:uppercase;color:#8E867B;margin-bottom:8px;">Query Composer</div>',
-            unsafe_allow_html=True,
-        )
-        composer.render()
+    center_col, chat_col = st.columns([2, 1], gap="medium")
 
-    with preview_col:
+    with center_col:
         sql_preview.render()
+        st.markdown("---")
+        results.render()
 
-    st.markdown("---")
-    st.markdown(
-        '<div style="font-size:11px;font-weight:600;letter-spacing:.07em;'
-        'text-transform:uppercase;color:#8E867B;margin-bottom:8px;">Results</div>',
-        unsafe_allow_html=True,
-    )
-    results.render()
+    with chat_col:
+        with st.container(border=True, key="chat_panel"):
+            st.markdown(
+                '<div class="chat-panel-header">💬 Assistant</div>',
+                unsafe_allow_html=True,
+            )
+            ask.render()
+            assistant.render()
 
     _render_statusbar()
