@@ -242,6 +242,13 @@ def _render_model_selector() -> None:
     if selected_provider != current:
         _save_field_to_config("provider", selected_provider)
         st.session_state.pop("_cached_provider", None)  # invalidate ask-bar cache
+        # When switching to Groq, immediately save a valid Groq model.
+        # The popover closes on rerun so the model selectbox inside it never
+        # fires, leaving qwen2.5-coder:7b in config which Groq rejects (400).
+        if selected_provider == "groq":
+            from src.llm.natural_language import GROQ_MODELS
+            if cfg.model not in GROQ_MODELS:
+                _save_field_to_config("model", GROQ_MODELS[0])
         clear_cache()
         st.rerun()
 

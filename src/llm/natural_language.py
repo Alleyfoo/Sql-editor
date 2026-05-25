@@ -262,7 +262,6 @@ GROQ_MODELS = (
     "llama-3.3-70b-versatile",   # best quality, generous free tier
     "llama-3.1-8b-instant",      # fastest, good for simple queries
     "gemma2-9b-it",              # good structured-output compliance
-    "mixtral-8x7b-32768",        # reliable JSON mode
 )
 
 GROQ_HOST = "https://api.groq.com/openai"
