@@ -156,7 +156,10 @@ def _render_followup_chips(questions: List[str], entry_idx: int, fq_idx: int) ->
     for i, q in enumerate(questions):
         btn_key = f"fq_{entry_idx}_{fq_idx + i}"
         if st.button(f"→ {q}", key=btn_key):
-            st.session_state["nl_text_input"] = q
+            # Use nl_prefill, not nl_text_input — the text widget is already
+            # instantiated at this point. ask.render() translates nl_prefill
+            # → nl_text_input on the next run, before the widget renders.
+            st.session_state["nl_prefill"] = q
             st.session_state["nl_auto_submit"] = True
             st.rerun()
     return fq_idx + len(questions)
