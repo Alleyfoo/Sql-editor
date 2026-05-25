@@ -116,9 +116,8 @@ and HAVING. The LLM populates it; you can tweak it before running.
 **SQL Preview** — shows the exact SQL that will run. Nothing executes until you
 click **▶ Run query**.
 
-**Model selector** — click **⚙ LLM model** in the top bar to switch providers:
-local Ollama, remote Ollama, [Groq](https://console.groq.com) (free cloud tier),
-or any OpenAI-compatible API. API keys are session-only — never written to disk.
+**Model selector** — click **⚙ LLM model** in the top bar to switch between
+local Ollama and remote Ollama, and to choose which pulled model to use.
 
 ---
 
@@ -142,9 +141,8 @@ This tool will never modify your data. Six layers enforce this:
    `DETACH`, `PRAGMA`, `REPLACE`, `TRUNCATE`, `EXEC`, `EXECUTE`, `GRANT`,
    `REVOKE`.
 
-**No data leaves your machine** when using local Ollama. If you switch to a cloud
-provider (Groq, OpenAI-compatible), the result sample sent to the LLM for "Ask +
-Analyze" is limited to 15 rows of query output — never the full dataset.
+**No data leaves your machine.** The LLM runs locally via Ollama — nothing is
+sent to any external service.
 
 ---
 

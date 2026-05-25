@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -46,9 +46,6 @@ class ProbeResult:
 
 
 def _do_probe(cfg: LLMConfig) -> ProbeResult:
-    provider = (cfg.provider or "ollama").lower()
-    if provider in ("groq", "openai_compatible"):
-        return _probe_openai_compatible(cfg)
     return _probe_ollama(cfg)
 
 
@@ -112,82 +109,6 @@ def _probe_ollama(cfg: LLMConfig) -> ProbeResult:
     )
 
 
-def _probe_openai_compatible(cfg: LLMConfig) -> ProbeResult:
-    """Probe Groq / OpenAI-compatible endpoints via GET /v1/models."""
-    from src.llm.natural_language import GROQ_HOST, GROQ_MODELS
-
-    if not cfg.api_key:
-        return ProbeResult(
-            status="offline", host=cfg.host, model=cfg.model,
-            detail="API key not set",
-        )
-
-    host = GROQ_HOST if cfg.provider == "groq" else cfg.host.rstrip("/")
-    url = host + "/v1/models"
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {cfg.api_key}",
-        },
-    )
-    try:
-        with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
-            body = response.read()
-    except HTTPError as exc:
-        if exc.code == 401:
-            return ProbeResult(
-                status="offline", host=host, model=cfg.model,
-                detail="invalid API key",
-            )
-        if exc.code == 403:
-            # 403 = key format accepted but access denied.
-            # Common causes: account not verified, key revoked, or
-            # the account needs phone verification at console.groq.com.
-            # We cannot tell from the status alone whether completions
-            # will work, so report offline with an actionable hint.
-            return ProbeResult(
-                status="offline", host=host, model=cfg.model,
-                detail="access denied (403) — verify your account at console.groq.com",
-            )
-        return ProbeResult(
-            status="offline", host=host, model=cfg.model,
-            detail=f"HTTP {exc.code}",
-        )
-    except (URLError, TimeoutError, OSError) as exc:
-        return ProbeResult(
-            status="offline", host=host, model=cfg.model, detail=str(exc),
-        )
-
-    try:
-        envelope = json.loads(body)
-    except json.JSONDecodeError:
-        return ProbeResult(
-            status="offline", host=host, model=cfg.model,
-            detail="non-JSON response",
-        )
-
-    # Pull model list from the /v1/models response
-    available = []
-    for entry in (envelope.get("data") or []):
-        mid = entry.get("id") if isinstance(entry, dict) else None
-        if isinstance(mid, str):
-            available.append(mid)
-
-    # Fallback: for Groq, we know the model list
-    if not available and cfg.provider == "groq":
-        available = list(GROQ_MODELS)
-
-    provider_label = "Groq" if cfg.provider == "groq" else host
-    return ProbeResult(
-        status="ok",
-        host=host,
-        model=cfg.model,
-        detail=f"{provider_label} · {len(available)} models",
-        available_models=tuple(available),
-    )
-
-
 def probe_ollama(*, force: bool = False) -> ProbeResult:
     """Return the cached probe result, re-probing when the TTL has expired."""
     cached: Optional[Tuple[ProbeResult, float]] = st.session_state.get(_SESSION_KEY)
@@ -196,16 +117,6 @@ def probe_ollama(*, force: bool = False) -> ProbeResult:
         if time.monotonic() - ts < _CACHE_TTL:
             return result
     cfg = load_llm_config(load_config() or {})
-    # Merge session-stored API key so cloud providers show correct status
-    # even when the key has never been written to disk.
-    session_key = (
-        (st.session_state.get("_groq_api_key") or "").strip()
-        or (st.session_state.get("_oai_api_key") or "").strip()
-        or (st.session_state.get("_session_api_key") or "").strip()
-    )
-    if session_key and not cfg.api_key:
-        import dataclasses
-        cfg = dataclasses.replace(cfg, api_key=session_key)
     result = _do_probe(cfg)
     st.session_state[_SESSION_KEY] = (result, time.monotonic())
     return result

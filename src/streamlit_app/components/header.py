@@ -38,16 +38,7 @@ def _llm_status_pill_html() -> str:
         if probe.detail:
             tooltip += f" \u2014 {probe.detail}"
         bg, fg, border, dot = "#E1F0E2", "#3F6B45", "#C8DDC9", "#3F8A4F"
-        # Show provider name in pill for non-Ollama providers
-        from src.llm.natural_language import load_llm_config
-        _pcfg = load_llm_config(load_config() or {})
-        _provider = (_pcfg.provider or "ollama").lower()
-        _provider_tag = {
-            "groq": "Groq",
-            "openai_compatible": "API",
-        }.get(_provider, "")
-        _tag = f" \u00b7 {_provider_tag}" if _provider_tag else ""
-        label = f"LLM: connected{_tag} \u00b7 {probe.model}"
+        label = f"LLM: connected \u00b7 {probe.model}"
     else:
         tooltip = f"{probe.host} \u00b7 {probe.detail or 'offline'}"
         bg, fg, border, dot = "#FAE7D0", "#8A4A11", "#E9C79A", "#C2410C"
@@ -207,10 +198,8 @@ def _handle_upload(uploaded) -> None:
 
 
 _PROVIDERS = {
-    "ollama":            "Local Ollama",
-    "ollama_remote":     "Remote Ollama",
-    "groq":              "Groq  (cloud · free tier)",
-    "openai_compatible": "OpenAI-compatible",
+    "ollama":        "Local Ollama",
+    "ollama_remote": "Remote Ollama",
 }
 
 
@@ -219,9 +208,6 @@ def _render_model_selector() -> None:
     from src.streamlit_app.llm_health import clear_cache
 
     cfg = load_llm_config(load_config())
-
-    # Merge session-stored API key so the probe sees it
-    _sync_session_api_key(cfg)
 
     st.markdown(
         '<div style="font-size:10.5px;font-weight:600;letter-spacing:.07em;'
@@ -242,24 +228,12 @@ def _render_model_selector() -> None:
     if selected_provider != current:
         _save_field_to_config("provider", selected_provider)
         st.session_state.pop("_cached_provider", None)  # invalidate ask-bar cache
-        # When switching to Groq, immediately save a valid Groq model.
-        # The popover closes on rerun so the model selectbox inside it never
-        # fires, leaving qwen2.5-coder:7b in config which Groq rejects (400).
-        if selected_provider == "groq":
-            from src.llm.natural_language import GROQ_MODELS
-            if cfg.model not in GROQ_MODELS:
-                _save_field_to_config("model", GROQ_MODELS[0])
         clear_cache()
         st.rerun()
 
     st.markdown('<div style="margin-top:8px;"></div>', unsafe_allow_html=True)
 
-    if selected_provider in ("ollama", "ollama_remote"):
-        _render_ollama_section(cfg, selected_provider)
-    elif selected_provider == "groq":
-        _render_groq_section(cfg)
-    elif selected_provider == "openai_compatible":
-        _render_openai_compatible_section(cfg)
+    _render_ollama_section(cfg, selected_provider)
 
 
 # ── Per-provider sections ──────────────────────────────────────────────────
@@ -315,109 +289,6 @@ def _render_ollama_section(cfg, provider: str) -> None:
         st.rerun()
 
 
-def _render_groq_section(cfg) -> None:
-    from src.llm.natural_language import GROQ_MODELS
-    from src.streamlit_app.llm_health import clear_cache, probe_ollama
-
-    _label("API Key")
-    stored = st.session_state.get("_groq_api_key", cfg.api_key or "")
-    new_key = st.text_input(
-        "Groq API key", value=stored, type="password",
-        key="llm_groq_key_input", label_visibility="collapsed",
-        placeholder="gsk_…",
-    )
-    if new_key.strip() != stored:
-        st.session_state["_groq_api_key"] = new_key.strip()  # strip whitespace from paste
-        st.session_state.pop("_groq_test_result", None)  # stale result no longer valid
-        _sync_session_api_key(cfg)
-        clear_cache()
-        st.rerun()
-
-    st.caption(
-        "Free tier at [console.groq.com](https://console.groq.com). "
-        "Key is session-only — never written to disk."
-    )
-
-    _label("Model", top_margin=True)
-    groq_models = list(GROQ_MODELS)
-    current_model = cfg.model if cfg.model in groq_models else groq_models[0]
-    selected = st.selectbox(
-        "Model", options=groq_models, index=groq_models.index(current_model),
-        key="llm_groq_model", label_visibility="collapsed",
-    )
-    if selected != cfg.model:
-        _save_field_to_config("model", selected)
-        clear_cache()
-        st.rerun()
-
-    if st.button("↺ Test connection", key="llm_groq_test", width='stretch'):
-        # Probe inline — no explicit st.rerun() so the popover stays open.
-        # The button click already triggers a natural rerun; the result stored
-        # in session state is shown below on the same pass.
-        clear_cache()
-        probe = probe_ollama(force=True)
-        if probe.ok:
-            st.session_state["_groq_test_result"] = (
-                "ok",
-                f"Connected · {probe.detail or probe.model}",
-            )
-        else:
-            st.session_state["_groq_test_result"] = (
-                "error",
-                probe.detail or "Connection failed",
-            )
-
-    _test = st.session_state.get("_groq_test_result")
-    if _test:
-        kind, msg = _test
-        if kind == "ok":
-            st.success(msg)
-        else:
-            st.error(msg)
-            if "403" in msg or "access denied" in msg.lower():
-                st.caption(
-                    "💡 Go to [console.groq.com](https://console.groq.com), "
-                    "check your account is verified, and confirm the key "
-                    "is copied in full (starts with `gsk_`)."
-                )
-
-
-def _render_openai_compatible_section(cfg) -> None:
-    from src.streamlit_app.llm_health import clear_cache
-
-    _label("Host URL")
-    new_host = st.text_input(
-        "Host", value=cfg.host, key="llm_oai_host",
-        label_visibility="collapsed", placeholder="https://api.openai.com",
-    )
-    if new_host and new_host != cfg.host:
-        _save_field_to_config("host", new_host)
-        clear_cache()
-        st.rerun()
-
-    _label("API Key", top_margin=True)
-    stored = st.session_state.get("_oai_api_key", cfg.api_key or "")
-    new_key = st.text_input(
-        "API key", value=stored, type="password",
-        key="llm_oai_key", label_visibility="collapsed",
-    )
-    if new_key != stored:
-        st.session_state["_oai_api_key"] = new_key
-        _sync_session_api_key(cfg)
-        clear_cache()
-        st.rerun()
-
-    _label("Model", top_margin=True)
-    new_model = st.text_input(
-        "Model", value=cfg.model, key="llm_oai_model",
-        label_visibility="collapsed", placeholder="gpt-4o-mini",
-    )
-    if new_model and new_model != cfg.model:
-        _save_field_to_config("model", new_model)
-        clear_cache()
-        st.rerun()
-
-
 # ── Config helpers ─────────────────────────────────────────────────────────
 
 def _label(text: str, *, top_margin: bool = False) -> None:
@@ -428,30 +299,6 @@ def _label(text: str, *, top_margin: bool = False) -> None:
         f'{text}</div>',
         unsafe_allow_html=True,
     )
-
-
-def _sync_session_api_key(cfg) -> None:
-    """Merge session-stored API key back into the live config object.
-
-    The config dataclass is loaded fresh each render; API keys entered in
-    the UI live in session state so they aren't written to disk. This call
-    patches the in-memory cfg so llm_health and enrichment see the key.
-    """
-    import dataclasses
-    key = (
-        st.session_state.get("_groq_api_key")
-        or st.session_state.get("_oai_api_key")
-        or cfg.api_key
-    )
-    # We can't mutate a frozen dataclass — store the patched version in session
-    if key and key != cfg.api_key:
-        patched = dataclasses.replace(cfg, api_key=key)
-        st.session_state["_live_llm_cfg"] = patched
-
-
-def _patch_session_api_key(key: str) -> None:
-    """Store API key override so ask.py picks it up via session state."""
-    st.session_state["_session_api_key"] = key
 
 
 def _save_field_to_config(field: str, value: str) -> None:

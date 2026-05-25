@@ -38,11 +38,11 @@ def render() -> None:
             st.session_state["_cached_provider"] = (
                 _load_llm_cfg(_load_config() or {}).provider or "ollama"
             ).lower()
-        _provider_label = {
-            "groq": "Groq",
-            "openai_compatible": "API",
-            "ollama_remote": "remote Ollama",
-        }.get(st.session_state["_cached_provider"], "local model")
+        _provider_label = (
+            "remote Ollama"
+            if st.session_state["_cached_provider"] == "ollama_remote"
+            else "local Ollama"
+        )
         st.markdown(
             f'<div class="ask-model-line">'
             f'<span class="pulse"></span>'
@@ -212,17 +212,8 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
 
     try:
         from src.llm.natural_language import load_llm_config
-        import dataclasses
         cfg_data = load_config()
         llm_cfg = load_llm_config(cfg_data)
-        # Merge session-stored API key (entered in the UI, never written to disk)
-        session_key = (
-            (st.session_state.get("_groq_api_key") or "").strip()
-            or (st.session_state.get("_oai_api_key") or "").strip()
-            or (st.session_state.get("_session_api_key") or "").strip()
-        )
-        if session_key and not llm_cfg.api_key:
-            llm_cfg = dataclasses.replace(llm_cfg, api_key=session_key)
         with st.spinner("Thinking…"):
             result_model = nl_to_query_model(
                 text,
@@ -448,7 +439,6 @@ def _execute_and_compute(
     # Deep analysis via AnalysisCoordinator — only on "Ask + Analyze"
     if run_llm_analysis and df is not None and len(df) > 0:
         try:
-            import dataclasses as _dc
             from src.config import load_config
             from src.ingestion import infer_schema
             from src.llm.natural_language import load_llm_config
@@ -456,14 +446,6 @@ def _execute_and_compute(
 
             with st.spinner("Analysing…"):
                 cfg = load_llm_config(load_config())
-                session_key = (
-                    st.session_state.get("_groq_api_key")
-                    or st.session_state.get("_oai_api_key")
-                    or st.session_state.get("_session_api_key")
-                )
-                if session_key and not cfg.api_key:
-                    cfg = _dc.replace(cfg, api_key=session_key)
-
                 result_schema = infer_schema(df)
                 coordinator = AnalysisCoordinator(llm_config=cfg)
                 run = coordinator.run(
