@@ -28,6 +28,9 @@ eval/reports/
 .handoff.md
 progress.txt
 
+# Streamlit secrets (local copy — never commit)
+.streamlit/secrets.toml
+
 # Local benchmark datasets (large, not needed for the app)
 data/pdf_inputs/
 data/open_data/

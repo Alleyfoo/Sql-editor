@@ -351,7 +351,18 @@ def _label(text: str, *, top_margin: bool = False) -> None:
 
 
 def _save_field_to_config(field: str, value: str) -> None:
-    """Write a single llm.* field to config.yaml."""
+    """Persist a single llm.* field.
+
+    Always writes to ``st.session_state["_llm_overrides"]`` so the change
+    survives on Streamlit Community Cloud (where the filesystem is ephemeral).
+    Also attempts to write to ``config.yaml`` for local development.
+    """
+    # Runtime override — works everywhere, including Streamlit Cloud
+    overrides: dict = st.session_state.get("_llm_overrides", {})
+    overrides[field] = value
+    st.session_state["_llm_overrides"] = overrides
+
+    # Best-effort local config.yaml write (skipped silently on Cloud)
     import yaml
     from src.config import DEFAULT_CONFIG_PATH
     path = DEFAULT_CONFIG_PATH

@@ -119,15 +119,35 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
 
     Precedence (first non-empty wins):
 
-    1. ``OLLAMA_HOST`` / ``OLLAMA_MODEL`` / ``OLLAMA_TIMEOUT``
-    2. ``llm:`` section of ``config.yaml``
-    3. Hard-coded defaults
+    1. ``OLLAMA_HOST`` / ``OLLAMA_MODEL`` / ``OLLAMA_TIMEOUT`` env vars
+    2. ``st.session_state["_llm_overrides"]`` — runtime UI changes
+    3. ``st.secrets["llm"]`` — Streamlit Community Cloud secrets
+    4. ``llm:`` section of ``config.yaml`` — local development
+    5. Hard-coded defaults
     """
     section: Dict[str, Any] = {}
     if app_config:
         raw = app_config.get("llm") or {}
         if isinstance(raw, dict):
             section = raw
+
+    # Layer in st.secrets (works on Streamlit Community Cloud; no-op locally)
+    try:
+        import streamlit as st
+        st_secrets = dict(st.secrets.get("llm", {}))  # type: ignore[attr-defined]
+        if st_secrets:
+            section = {**section, **st_secrets}
+    except Exception:
+        pass
+
+    # Layer in runtime UI overrides (always available, survives ephemeral filesystem)
+    try:
+        import streamlit as st
+        overrides: Dict[str, Any] = st.session_state.get("_llm_overrides", {})
+        if overrides:
+            section = {**section, **overrides}
+    except Exception:
+        pass
 
     host = (
         os.environ.get("OLLAMA_HOST") or section.get("host") or "http://localhost:11434"
@@ -136,7 +156,7 @@ def load_llm_config(app_config: Optional[Dict[str, Any]] = None) -> LLMConfig:
     timeout_default = float(section.get("timeout", 60.0) or 60.0)
     timeout = _env_float("OLLAMA_TIMEOUT", timeout_default)
     provider = str(section.get("provider") or "ollama")
-    # API key: env var takes precedence over config file
+    # API key: env var takes precedence over config file / secrets
     api_key = (
         os.environ.get("GROQ_API_KEY")
         or os.environ.get("LLM_API_KEY")
