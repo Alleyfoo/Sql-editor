@@ -15,14 +15,13 @@ def render() -> None:
     fq_idx = 0
 
     with st.container(key="assistant_panel"):
-        # ── Header strip ──────────────────────────────────────────────────
-        head_col, clear_col = st.columns([1, 0.22])
-        with head_col:
+        # ── Turn count + Clear ────────────────────────────────────────────
+        count_col, clear_col = st.columns([1, 0.22])
+        with count_col:
             st.markdown(
                 f'<div class="asst-head">'
-                f'<span class="asst-head-label">Assistant</span>'
                 f'<span class="asst-head-count">'
-                f'{n_user} turn{"s" if n_user != 1 else ""}'
+                f'{n_user} turn{"s" if n_user != 1 else ""} of context'
                 f'</span>'
                 f'</div>',
                 unsafe_allow_html=True,

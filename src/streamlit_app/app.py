@@ -54,11 +54,11 @@ def run() -> None:
 
     sidebar.render()
     header.render()
-    schema_strip.render()
 
     center_col, chat_col = st.columns([2, 1], gap="medium")
 
     with center_col:
+        schema_strip.render()
         sql_preview.render()
         st.markdown("---")
         results.render()

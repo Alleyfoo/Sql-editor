@@ -985,30 +985,20 @@ button, input, select, textarea {
 .st-key-assistant_panel > div > [data-testid="stVerticalBlock"] {
   gap: 0 !important;
 }
-/* Header strip */
+/* Turn-count + Clear row */
 [data-testid="stHorizontalBlock"]:has(.asst-head) {
-  padding: 8px 14px !important;
-  background: #FDFCF8 !important;
-  border-bottom: 1px solid var(--line-2) !important;
   align-items: center !important;
 }
 [data-testid="stHorizontalBlock"]:has(.asst-head) .stButton button {
-  height: 28px !important;
-  min-height: 28px !important;
+  height: 26px !important;
+  min-height: 26px !important;
   padding: 0 10px !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
 }
 .asst-head {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.asst-head-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink-3);
 }
 .asst-head-count {
   font-family: "IBM Plex Mono", monospace;
