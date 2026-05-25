@@ -12,7 +12,7 @@ from src.heuristic_nl import (
 from src.query_model import QueryModel
 from src.streamlit_app import state
 from src.streamlit_app.llm_health import probe_ollama
-from src.streamlit_app.quick_queries import QuickQuery, build_quick_queries
+from src.streamlit_app.quick_queries import QuickQuery, build_quick_queries, build_supply_chain_quick_queries
 
 
 def render() -> None:
@@ -92,7 +92,12 @@ def render() -> None:
 
 
 def _render_quick_queries(schema: dict, has_data: bool) -> None:
-    quicks: List[QuickQuery] = build_quick_queries(schema) if has_data else []
+    if has_data and st.session_state.get("tables"):
+        quicks: List[QuickQuery] = build_supply_chain_quick_queries()
+    elif has_data:
+        quicks: List[QuickQuery] = build_quick_queries(schema)
+    else:
+        quicks: List[QuickQuery] = []
 
     st.markdown(
         '<div class="ask-model-line" style="margin-top:6px;">'
@@ -129,7 +134,26 @@ def _apply_quick_query(qq: QuickQuery, schema: dict) -> None:
     """Build a QueryModel from the template and sync into the composer.
 
     Does not execute — user reviews SQL and clicks Run.
+    For raw-SQL quick queries (qq.sql is set), bypasses the QueryModel
+    and puts the SQL directly into the preview.
     """
+    # Raw SQL path — used for JOIN / multi-table queries
+    if qq.sql:
+        ss = st.session_state
+        ss.last_sql = qq.sql
+        ss.results_df = None
+        ss.last_exec_ms = None
+        state.append_transcript({
+            "role": "assistant",
+            "reply": f"{qq.label} — review the SQL and press Run.",
+            "sql": qq.sql,
+            "det_analysis": None,
+            "error": None,
+            "source": "quick_query",
+        })
+        st.rerun()
+        return
+
     try:
         model: QueryModel = qq.build(schema)
     except Exception as exc:

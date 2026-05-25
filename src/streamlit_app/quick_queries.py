@@ -21,12 +21,19 @@ from src.query_model import Aggregation, QueryModel
 
 @dataclass(frozen=True)
 class QuickQuery:
-    """A pre-canned, schema-aware query template."""
+    """A pre-canned, schema-aware query template.
+
+    Either ``build`` or ``sql`` must be set.
+    - ``build`` — called with the active schema to produce a ``QueryModel``
+      (single-table path; SQL is generated via ``QueryModel.to_sql()``).
+    - ``sql``   — raw SQL string used directly (multi-table / JOIN path).
+    """
 
     key: str  # stable id used for Streamlit widget keys
     label: str  # shown on the button
     description: str  # shown as tooltip / caption
-    build: Callable[[Dict[str, str]], QueryModel]
+    build: Optional[Callable[[Dict[str, str]], QueryModel]] = None
+    sql: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -446,4 +453,143 @@ def build_quick_queries(schema: Dict[str, str]) -> List[QuickQuery]:
     return out
 
 
-__all__ = ["QuickQuery", "build_quick_queries"]
+# ---------------------------------------------------------------------------
+# Supply-chain multi-table quick queries
+# These target the three named tables loaded by load_supply_chain_demo()
+# and are shown instead of the generic quick queries when session state
+# has a multi-table dataset.
+# ---------------------------------------------------------------------------
+
+_SC_PRODUCTS_BY_CATEGORY = """\
+SELECT category,
+       COUNT(*)           AS products,
+       ROUND(AVG(unit_cost),  2) AS avg_unit_cost,
+       ROUND(AVG(unit_price), 2) AS avg_unit_price
+FROM   products
+GROUP  BY category
+ORDER  BY products DESC"""
+
+_SC_SUPPLIER_PERFORMANCE = """\
+SELECT supplier_name,
+       country,
+       rating,
+       on_time_delivery_pct,
+       lead_time_days,
+       payment_terms
+FROM   suppliers
+GROUP  BY supplier_name, country, rating,
+          on_time_delivery_pct, lead_time_days, payment_terms
+ORDER  BY rating DESC, on_time_delivery_pct DESC"""
+
+_SC_DELIVERIES_BY_WAREHOUSE = """\
+SELECT warehouse,
+       COUNT(*)                  AS deliveries,
+       SUM(quantity_received)    AS total_units,
+       ROUND(SUM(total_cost), 2) AS total_value
+FROM   received_inventory
+GROUP  BY warehouse
+ORDER  BY total_value DESC"""
+
+_SC_MONTHLY_RECEIVING = """\
+SELECT strftime('%Y-%m', received_date) AS month,
+       COUNT(*)                          AS deliveries,
+       ROUND(SUM(total_cost), 2)         AS total_value
+FROM   received_inventory
+GROUP  BY month
+ORDER  BY month ASC"""
+
+_SC_TOP_PRODUCTS_BY_VALUE = """\
+SELECT p.product_name,
+       p.category,
+       COUNT(r.po_id)              AS deliveries,
+       SUM(r.quantity_received)    AS total_units,
+       ROUND(SUM(r.total_cost), 2) AS total_value
+FROM   received_inventory r
+JOIN   products p ON r.product_id = p.product_id
+GROUP  BY p.product_name, p.category
+ORDER  BY total_value DESC
+LIMIT  15"""
+
+_SC_SLOW_SUPPLIERS = """\
+SELECT s.supplier_name,
+       s.country,
+       s.lead_time_days,
+       s.on_time_delivery_pct,
+       COUNT(r.po_id)              AS deliveries,
+       ROUND(SUM(r.total_cost), 2) AS total_value
+FROM   received_inventory r
+JOIN   suppliers s ON r.supplier_id = s.supplier_id
+               AND r.product_id   = s.product_id
+GROUP  BY s.supplier_name, s.country,
+          s.lead_time_days, s.on_time_delivery_pct
+ORDER  BY s.lead_time_days DESC"""
+
+_SC_FULL_CHAIN = """\
+SELECT p.product_name,
+       p.category,
+       s.supplier_name,
+       s.country,
+       s.rating,
+       s.on_time_delivery_pct,
+       COUNT(r.po_id)              AS deliveries,
+       SUM(r.quantity_received)    AS total_units,
+       ROUND(SUM(r.total_cost), 2) AS total_value
+FROM   received_inventory r
+JOIN   products  p ON r.product_id  = p.product_id
+JOIN   suppliers s ON r.supplier_id = s.supplier_id
+               AND r.product_id   = s.product_id
+GROUP  BY p.product_name, p.category,
+          s.supplier_name, s.country, s.rating, s.on_time_delivery_pct
+ORDER  BY total_value DESC
+LIMIT  20"""
+
+
+def build_supply_chain_quick_queries() -> List[QuickQuery]:
+    """Return the fixed set of quick queries for the supply-chain demo dataset."""
+    return [
+        QuickQuery(
+            key="sc_products_by_category",
+            label="Products by category",
+            description="COUNT, avg cost and price per product category (products table).",
+            sql=_SC_PRODUCTS_BY_CATEGORY,
+        ),
+        QuickQuery(
+            key="sc_supplier_performance",
+            label="Supplier performance",
+            description="Rating, on-time %, and lead time for every supplier (suppliers table).",
+            sql=_SC_SUPPLIER_PERFORMANCE,
+        ),
+        QuickQuery(
+            key="sc_deliveries_by_warehouse",
+            label="Deliveries by warehouse",
+            description="Delivery count and total value per warehouse (received_inventory).",
+            sql=_SC_DELIVERIES_BY_WAREHOUSE,
+        ),
+        QuickQuery(
+            key="sc_monthly_receiving",
+            label="Monthly receiving trend",
+            description="Monthly delivery count and total cost over time (received_inventory).",
+            sql=_SC_MONTHLY_RECEIVING,
+        ),
+        QuickQuery(
+            key="sc_top_products",
+            label="Top products by value",
+            description="JOIN received_inventory + products — top 15 by total received value.",
+            sql=_SC_TOP_PRODUCTS_BY_VALUE,
+        ),
+        QuickQuery(
+            key="sc_slow_suppliers",
+            label="Slowest suppliers",
+            description="JOIN received_inventory + suppliers — ranked by lead time.",
+            sql=_SC_SLOW_SUPPLIERS,
+        ),
+        QuickQuery(
+            key="sc_full_chain",
+            label="Full supply chain view",
+            description="3-way JOIN: products + suppliers + received_inventory.",
+            sql=_SC_FULL_CHAIN,
+        ),
+    ]
+
+
+__all__ = ["QuickQuery", "build_quick_queries", "build_supply_chain_quick_queries"]
