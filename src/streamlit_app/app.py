@@ -10,6 +10,7 @@ from src.streamlit_app.components import (
     composer,
     header,
     results,
+    schema_strip,
     sidebar,
     sql_preview,
 )
@@ -55,6 +56,7 @@ def run() -> None:
     sidebar.render()
     header.render()
     ask.render()
+    schema_strip.render()
     assistant.render()
 
     composer_col, preview_col = st.columns([1.15, 1], gap="medium")
