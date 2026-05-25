@@ -165,8 +165,9 @@ def _single_group_aggregation(
     if measure_col is None or group_col not in df.columns:
         return DeterministicAnalysis(pattern="single_group_unparseable")
 
-    series = pd.to_numeric(df[measure_col], errors="coerce").dropna()
-    if series.empty:
+    series = pd.to_numeric(df[measure_col], errors="coerce")
+    clean = series.dropna()
+    if clean.empty:
         return DeterministicAnalysis(
             warnings=["No numeric values to summarise."],
             pattern="single_group_no_numeric",
@@ -176,18 +177,20 @@ def _single_group_aggregation(
     # SQL emitted by quick_queries / heuristic). Re-derive top/bottom
     # from the data rather than trusting position, since users may
     # have flipped the order.
-    sorted_df = df.assign(_m=series.values).sort_values(
+    # Use series (with NaN kept) for the assign so index lengths match,
+    # then drop any NaN rows before slicing top/bottom.
+    sorted_df = df.assign(_m=series).dropna(subset=["_m"]).sort_values(
         "_m", ascending=False, kind="mergesort"
     )
     top_row = sorted_df.iloc[0]
     bottom_row = sorted_df.iloc[-1]
     top_val = float(top_row["_m"])
     bot_val = float(bottom_row["_m"])
-    total = float(series.sum()) or 1e-12
+    total = float(clean.sum()) or 1e-12
 
     top_share = top_val / total
     ratio = (top_val / bot_val) if bot_val > 0 else float("inf")
-    hhi = float(((series / total) ** 2).sum())
+    hhi = float(((clean / total) ** 2).sum())
 
     insights = [
         Insight(

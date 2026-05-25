@@ -7,6 +7,7 @@ from typing import Optional
 
 import streamlit as st
 
+from src.config import load_config
 from src.ingestion import load_csv
 from src.streamlit_app import state
 from src.streamlit_app.demo_dataset import (

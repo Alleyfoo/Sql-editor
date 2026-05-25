@@ -30,12 +30,21 @@ def render() -> None:
         # Header line: pulse dot + label + model info
         transcript = st.session_state.get("transcript", [])
         n_turns = sum(1 for m in transcript if m.get("role") == "user")
+        # Show provider-aware label rather than always saying "local model"
+        from src.config import load_config as _load_config
+        from src.llm.natural_language import load_llm_config as _load_llm_cfg
+        _provider = (_load_llm_cfg(_load_config() or {}).provider or "ollama").lower()
+        _provider_label = {
+            "groq": "Groq",
+            "openai_compatible": "API",
+            "ollama_remote": "remote Ollama",
+        }.get(_provider, "local model")
         st.markdown(
             f'<div class="ask-model-line">'
             f'<span class="pulse"></span>'
             f'<strong style="color:var(--ink);font-size:12px;">Ask your data</strong>'
             f'<span style="margin-left:auto;opacity:0.7;">'
-            f'local model · {n_turns} turn{"s" if n_turns != 1 else ""} of context'
+            f'{_provider_label} · {n_turns} turn{"s" if n_turns != 1 else ""} of context'
             f"</span>"
             f"</div>",
             unsafe_allow_html=True,

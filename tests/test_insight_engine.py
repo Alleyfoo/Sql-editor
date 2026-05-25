@@ -69,6 +69,28 @@ def test_single_group_aggregation_headline_has_ratio():
     assert any(token in res.headline.text for token in ("3.3", "3.4"))
 
 
+def test_single_group_aggregation_with_nan_values():
+    """Regression: NaN in the measure column must not cause a length-mismatch
+    ValueError when assigning the numeric series back to the DataFrame."""
+    df = pd.DataFrame(
+        {
+            "category": ["Electronics", "Apparel", "Stationery", "Unknown"],
+            "sum_revenue": [24_488.0, 13_212.0, 7_251.0, None],  # one NaN
+        }
+    )
+    model = QueryModel(
+        table="data",
+        selected_columns=["category"],
+        group_by=["category"],
+        aggregations=[Aggregation(column="revenue", function="SUM", alias="sum_revenue")],
+        order_by=[("sum_revenue", "DESC")],
+    )
+    res = compute_insights(df, model)
+    # Should succeed and report top/lowest/concentration from the 3 non-NaN rows
+    assert res.pattern == "single_group_aggregation"
+    assert res.insights[0].value == "Electronics"
+
+
 def test_single_group_aggregation_no_headline_when_flat():
     """If the top and bottom values are within 5%, suppress the headline."""
     df = pd.DataFrame(

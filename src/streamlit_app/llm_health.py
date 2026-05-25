@@ -181,6 +181,16 @@ def probe_ollama(*, force: bool = False) -> ProbeResult:
         if time.monotonic() - ts < _CACHE_TTL:
             return result
     cfg = load_llm_config(load_config() or {})
+    # Merge session-stored API key so cloud providers show correct status
+    # even when the key has never been written to disk.
+    session_key = (
+        st.session_state.get("_groq_api_key")
+        or st.session_state.get("_oai_api_key")
+        or st.session_state.get("_session_api_key")
+    )
+    if session_key and not cfg.api_key:
+        import dataclasses
+        cfg = dataclasses.replace(cfg, api_key=session_key)
     result = _do_probe(cfg)
     st.session_state[_SESSION_KEY] = (result, time.monotonic())
     return result
