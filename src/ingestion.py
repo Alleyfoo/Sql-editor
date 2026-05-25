@@ -26,6 +26,24 @@ import pandas as pd
 TABLE_NAME = "data"
 _DATE_THRESHOLD = 0.9
 
+# Column-name substrings that indicate a human-readable label — these are
+# always text even if the stored values happen to be integers (e.g. category
+# codes 1/2/3, or product names stored as numeric IDs in some exports).
+_TEXT_NAME_HINTS: tuple[str, ...] = (
+    "name",        # product_name, supplier_name, customer_name …
+    "category",    # category, sub_category …
+    "label",
+    "title",
+    "description",
+    "status",      # order_status, status …
+    "type",        # order_type, product_type … (but NOT "unit_cost")
+    "tag",
+    "segment",
+    "region",
+    "country",
+    "group",
+)
+
 # SQLite authorizer action codes we allow on the read-only connection.
 # Anything else is denied. Action codes: https://www.sqlite.org/c3ref/c_alter_table.html
 _ALLOWED_ACTIONS = frozenset(
@@ -43,6 +61,13 @@ def _infer_column_type(series: pd.Series) -> str:
     if pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(
         series
     ):
+        # Name-based override: if the column name contains a well-known
+        # text-label hint (e.g. "product_name", "category"), classify it
+        # as text even when the stored values happen to be integers or
+        # floats (encoded category codes, numeric product IDs, etc.).
+        col_lower = str(series.name).lower()
+        if any(hint in col_lower for hint in _TEXT_NAME_HINTS):
+            return "text"
         return "numeric"
     if pd.api.types.is_datetime64_any_dtype(series):
         return "date"
