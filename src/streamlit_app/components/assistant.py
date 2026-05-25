@@ -47,7 +47,7 @@ def render() -> None:
 
         # ── Scrollable transcript ─────────────────────────────────────────
         with st.container(key="assistant_scroll"):
-            for entry in transcript:
+            for entry_idx, entry in enumerate(transcript):
                 role = entry.get("role", "user")
                 if role == "user":
                     with st.chat_message("user"):
@@ -81,7 +81,8 @@ def render() -> None:
                             if reply:
                                 st.markdown(reply)
                             if sql:
-                                with st.expander("SQL", expanded=False):
+                                is_quick = entry.get("source") == "quick_query"
+                                with st.expander("SQL", expanded=is_quick):
                                     from src.streamlit_app.sql_highlight import render_sql_block
                                     st.markdown(
                                         f'<div style="background:var(--code-bg);border:1px solid #2a2520;'
@@ -90,6 +91,17 @@ def render() -> None:
                                         f'</div>',
                                         unsafe_allow_html=True,
                                     )
+                                # Inline run button — avoids scrolling to the SQL panel
+                                run_col, _spacer = st.columns([0.28, 0.72])
+                                with run_col:
+                                    if st.button(
+                                        "▶ Run",
+                                        key=f"inline_run_{entry_idx}",
+                                        type="primary",
+                                        width="stretch",
+                                        disabled=not bool(st.session_state.get("conn")),
+                                    ):
+                                        _inline_run(sql)
 
                         if det_analysis is not None and not det_analysis.is_empty:
                             followups = _render_det_analysis(det_analysis, fq_idx)
@@ -163,6 +175,32 @@ def _render_followup_chips(questions: List[str], fq_start: int) -> None:
         f'<div class="followups-row">{chips_html}</div>',
         unsafe_allow_html=True,
     )
+
+
+def _inline_run(sql: str) -> None:
+    """Execute SQL from an inline assistant Run button and update results."""
+    import time
+    from src.executor import ExecutionError, execute
+    from src import history
+
+    conn = st.session_state.get("conn")
+    if not conn:
+        st.toast("No dataset loaded.", icon="⚠️")
+        return
+    try:
+        with st.spinner("Running…"):
+            t0 = time.perf_counter()
+            df = execute(conn, sql)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+        st.session_state.last_sql = sql
+        st.session_state.results_df = df
+        st.session_state.last_exec_ms = elapsed_ms
+        history.log_query(sql, len(df))
+        st.rerun()
+    except ExecutionError as exc:
+        st.error(str(exc))
+    except Exception as exc:
+        st.error(f"Unexpected error: {exc}")
 
 
 def _render_legacy_analysis(analysis, fq_start: int = 0) -> List[str]:
