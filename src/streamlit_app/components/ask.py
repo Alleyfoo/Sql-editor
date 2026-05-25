@@ -214,7 +214,15 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
     from src.llm.natural_language import LLMError, RouteToPythonError, nl_to_query_model
     from src.streamlit_app import state
 
-    schema = st.session_state.schema
+    # For multi-table datasets, scope NL queries to the primary table so the
+    # LLM doesn't hallucinate cross-table columns into a single "data" table.
+    tables: dict = st.session_state.get("tables", {})
+    if tables:
+        primary_table = next(iter(tables))
+        schema = tables[primary_table]
+    else:
+        primary_table = "data"
+        schema = st.session_state.schema
     history = st.session_state.nl_history
     model = st.session_state.model
 
@@ -245,6 +253,7 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
                 selected_columns=list(model.selected_columns),
                 history=history,
                 config=llm_cfg,
+                table_name=primary_table,
             )
     except RouteToPythonError as exc:
         state.append_transcript(

@@ -164,7 +164,7 @@ def _render_chart_from_spec(spec, df: pd.DataFrame) -> None:
         )
         .properties(title=spec.title, height=320)
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart)
 
 
 def _render_chart(df: pd.DataFrame) -> None:
@@ -197,7 +197,7 @@ def _render_chart(df: pd.DataFrame) -> None:
             )
             .properties(height=320)
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart)
     elif date_cols and num_cols:
         chart = (
             alt.Chart(df.head(500))
@@ -209,7 +209,7 @@ def _render_chart(df: pd.DataFrame) -> None:
             )
             .properties(height=320)
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart)
     elif len(num_cols) >= 2:
         x_col = st.selectbox("X axis", num_cols, key="chart_x")
         y_col = st.selectbox("Y axis", [c for c in num_cols if c != x_col], key="chart_y")
@@ -223,7 +223,7 @@ def _render_chart(df: pd.DataFrame) -> None:
             )
             .properties(height=320)
         )
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart)
     else:
         sel_x = st.selectbox("X axis", list(df.columns), key="chart_x_free")
         sel_y = st.selectbox("Y axis", list(df.columns), key="chart_y_free")
@@ -234,7 +234,7 @@ def _render_chart(df: pd.DataFrame) -> None:
                 .encode(x=sel_x, y=sel_y, tooltip=[sel_x, sel_y])
                 .properties(height=320)
             )
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart)
 
 
 def _render_summary(df: pd.DataFrame) -> None:

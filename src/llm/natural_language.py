@@ -396,6 +396,7 @@ def build_user_prompt(
     schema: Dict[str, str],
     selected_columns: Optional[List[str]] = None,
     history: Optional[List[tuple]] = None,
+    table_name: str = "data",
 ) -> str:
     """Compose the user turn: schema, allowed values, target JSON shape.
 
@@ -423,7 +424,7 @@ def build_user_prompt(
             lines.append(f"  A: {a}")
         history_block = "\n".join(lines) + "\n\n"
     return (
-        "You are given a single table named `data` with these columns:\n"
+        f"You are given a single table named `{table_name}` with these columns:\n"
         f"{_format_schema(schema)}\n"
         "\n"
         f"{history_block}"
@@ -758,7 +759,7 @@ def _parse_date_buckets(raw: Any, schema: Dict[str, str]) -> Dict[str, str]:
     return out
 
 
-def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
+def parse_query_plan(payload: Any, schema: Dict[str, str], table_name: str = "data") -> QueryModel:
     """Convert a raw JSON dict from the LLM into a validated ``QueryModel``.
 
     Every field is checked against the active dataset schema and the
@@ -917,7 +918,7 @@ def parse_query_plan(payload: Any, schema: Dict[str, str]) -> QueryModel:
     date_buckets = _parse_date_buckets(payload.get("date_buckets"), schema)
 
     return QueryModel(
-        table="data",
+        table=table_name,
         selected_columns=selected_columns,
         filters=filters,
         group_by=group_by,
@@ -944,6 +945,7 @@ def nl_to_query_model(
     config: Optional[LLMConfig] = None,
     selected_columns: Optional[List[str]] = None,
     history: Optional[List[tuple]] = None,
+    table_name: str = "data",
 ) -> QueryModel:
     """Translate a natural-language request into a validated ``QueryModel``.
 
@@ -982,11 +984,12 @@ def nl_to_query_model(
         client = make_llm_client(cfg)
 
     user_prompt = build_user_prompt(
-        nl.strip(), schema, selected_columns=selected_columns, history=history
+        nl.strip(), schema, selected_columns=selected_columns, history=history,
+        table_name=table_name,
     )
     payload = client.generate_json(SYSTEM_PROMPT, user_prompt)
     try:
-        model = parse_query_plan(payload, schema)
+        model = parse_query_plan(payload, schema, table_name=table_name)
     except LLMError as first_exc:
         msg = str(first_exc).lower()
         schema_error = "not in the dataset schema" in msg
@@ -1000,7 +1003,7 @@ def nl_to_query_model(
         )
         payload_retry = client.generate_json(SYSTEM_PROMPT, fix_prompt)
         try:
-            model = parse_query_plan(payload_retry, schema)
+            model = parse_query_plan(payload_retry, schema, table_name=table_name)
         except LLMError as retry_exc:
             raise LLMError(
                 f"{first_exc}; retry failed: {retry_exc}. "
