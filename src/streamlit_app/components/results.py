@@ -130,7 +130,51 @@ def _render_table(df: pd.DataFrame) -> None:
     )
 
 
+def _render_chart_from_spec(spec, df: pd.DataFrame) -> None:
+    """Render a single ChartSpec (from AnalysisCoordinator) as an Altair chart."""
+    try:
+        import altair as alt
+    except ImportError:
+        return
+
+    if spec.x_field not in df.columns or spec.y_field not in df.columns:
+        st.caption(f"Chart fields ({spec.x_field}, {spec.y_field}) not found in result.")
+        return
+
+    mark = alt.Chart(df.head(500))
+    if spec.chart_type == "line":
+        chart = mark.mark_line(color="#C2410C", strokeWidth=2, point=True)
+    elif spec.chart_type == "bar":
+        chart = mark.mark_bar(
+            color="#C2410C", cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+        )
+    else:
+        chart = mark.mark_point(color="#C2410C", opacity=0.7)
+
+    tooltip = [spec.x_field, spec.y_field]
+    if spec.series_field and spec.series_field in df.columns:
+        tooltip.append(spec.series_field)
+
+    chart = (
+        chart.encode(
+            x=alt.X(spec.x_field),
+            y=alt.Y(spec.y_field),
+            tooltip=tooltip,
+            **({"color": spec.series_field} if spec.series_field and spec.series_field in df.columns else {}),
+        )
+        .properties(title=spec.title, height=320)
+    )
+    st.altair_chart(chart, use_container_width=True)
+
+
 def _render_chart(df: pd.DataFrame) -> None:
+    # If AnalysisCoordinator produced chart specs, use those
+    chart_specs = st.session_state.get("last_chart_specs")
+    if chart_specs:
+        for spec in chart_specs:
+            _render_chart_from_spec(spec, df)
+        return
+
     try:
         import altair as alt
     except ImportError:

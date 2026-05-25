@@ -409,11 +409,13 @@ def _execute_and_compute(
     schema: Optional[dict] = None,
     run_llm_analysis: bool = False,
 ):
-    """Execute SQL, compute deterministic insights, optionally run LLM analysis.
+    """Execute SQL, compute deterministic insights, optionally run deep analysis.
 
     Returns a DeterministicAnalysis (possibly enriched), or None on execution failure.
-    When run_llm_analysis=True, Phase 4c enrichment asks the LLM to write a
-    2-3 sentence narrative and suggest additional follow-up questions.
+    When run_llm_analysis=True, AnalysisCoordinator runs a full analysis pipeline:
+    profiling → analysis plan → LLM insight report → chart specs.
+    Chart specs are stored in session state for the results Chart tab.
+    Falls back silently to deterministic-only results on any failure.
     """
     import time
     from src.executor import execute
@@ -422,6 +424,9 @@ def _execute_and_compute(
 
     conn = st.session_state.conn
     source_row_count = st.session_state.get("dataset_meta", {}).get("rows")
+
+    # Clear chart specs from any previous analysis run
+    st.session_state.pop("last_chart_specs", None)
 
     try:
         with st.spinner("Running…"):
@@ -440,17 +445,16 @@ def _execute_and_compute(
     except Exception:
         det = None
 
-    # Phase 4c — LLM enrichment: runs only on "Ask + Analyze"
-    if run_llm_analysis and det is not None and not det.is_empty:
+    # Deep analysis via AnalysisCoordinator — only on "Ask + Analyze"
+    if run_llm_analysis and df is not None and len(df) > 0:
         try:
+            import dataclasses as _dc
             from src.config import load_config
+            from src.ingestion import infer_schema
             from src.llm.natural_language import load_llm_config
-            from src.streamlit_app.insight_enrichment import (
-                enrich_analysis,
-                results_to_sample_csv,
-            )
+            from src.analysis_lane import AnalysisCoordinator
+
             with st.spinner("Analysing…"):
-                import dataclasses as _dc
                 cfg = load_llm_config(load_config())
                 session_key = (
                     st.session_state.get("_groq_api_key")
@@ -459,15 +463,70 @@ def _execute_and_compute(
                 )
                 if session_key and not cfg.api_key:
                     cfg = _dc.replace(cfg, api_key=session_key)
-                sample_csv = results_to_sample_csv(df, max_rows=15)
-                det = enrich_analysis(
-                    det,
-                    sql=sql,
-                    user_text=text,
-                    results_sample=sample_csv,
-                    config=cfg,
+
+                result_schema = infer_schema(df)
+                coordinator = AnalysisCoordinator(llm_config=cfg)
+                run = coordinator.run(
+                    question=text or sql,
+                    distilled_df=df,
+                    schema=result_schema,
+                    prior_analysis_handle=None,
+                    expected_followup_from=None,
                 )
+
+            # Store chart specs for the results Chart tab
+            if run.charts:
+                st.session_state["last_chart_specs"] = run.charts
+
+            # Enrich the DeterministicAnalysis with AnalysisRun output
+            det = _merge_analysis_run(det, run)
         except Exception:
-            pass  # enrichment failure never blocks the UI
+            pass  # coordinator failure never blocks the UI
 
     return det
+
+
+def _merge_analysis_run(det, run) -> "DeterministicAnalysis":
+    """Merge AnalysisCoordinator output into a DeterministicAnalysis.
+
+    - prose  ← InsightReport summary (replaces any prior LLM narrative)
+    - next_questions ← extended with follow-up hints from insights
+    - warnings ← extended with guardrail errors (capped at 2)
+    """
+    from src.streamlit_app.insight_engine import DeterministicAnalysis
+
+    prose = (run.report.summary or "").strip() or None
+
+    # Extract follow-up question hints from insight evidence fields
+    extra_qs: List[str] = []
+    for ins in run.report.insights[:3]:
+        ef = ins.evidence_fields
+        if ef and len(ef) > 0:
+            extra_qs.append(f"Break down {ef[0]} further")
+    # Also surface blocked claims as informational follow-ups
+    for bc in run.report.blocked_claims[:1]:
+        extra_qs.append(bc)
+
+    questions = list(det.next_questions if det else [])
+    for q in extra_qs:
+        if q and q not in questions:
+            questions.append(q)
+    questions = questions[:5]
+
+    warnings = list(det.warnings if det else [])
+    warnings.extend(run.guardrail_errors[:2])
+
+    if det is None:
+        return DeterministicAnalysis(
+            prose=prose,
+            next_questions=questions,
+            warnings=warnings,
+        )
+    return DeterministicAnalysis(
+        headline=det.headline,
+        insights=det.insights,
+        next_questions=questions,
+        warnings=warnings,
+        prose=prose,
+        pattern=det.pattern,
+    )

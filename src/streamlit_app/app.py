@@ -33,7 +33,7 @@ def _render_statusbar() -> None:
           <span>route: <strong>{route}</strong></span>
           <span>history: <strong>{hist_path}</strong></span>
           <div class="sb-right">
-            <span>v0.5 · Phase 3</span>
+            <span>v0.6 · Phase 4</span>
             <span>built with Streamlit</span>
           </div>
         </div>
