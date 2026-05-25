@@ -13,7 +13,11 @@ from src.streamlit_app import state
 from src.streamlit_app.demo_dataset import (
     DEMO_DESCRIPTION,
     DEMO_NAME,
+    SUPPLY_CHAIN_DESCRIPTION,
+    SUPPLY_CHAIN_NAME,
+    SUPPLY_CHAIN_SHOWCASE_SQL,
     load_demo,
+    load_supply_chain_demo,
 )
 from src.streamlit_app.llm_health import probe_ollama
 
@@ -124,6 +128,21 @@ def render() -> None:
             ):
                 _handle_demo_load()
 
+            st.markdown(
+                '<div style="margin-top:10px;padding-top:10px;'
+                "border-top:1px solid #E4DFD2;font-size:11px;"
+                "font-weight:600;letter-spacing:.07em;text-transform:uppercase;"
+                'color:#8E867B;">Or try the JOIN demo</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption(SUPPLY_CHAIN_DESCRIPTION)
+            if st.button(
+                "Load supply chain demo",
+                key="load_supply_chain_btn",
+                width='stretch',
+            ):
+                _handle_supply_chain_load()
+
     # LLM model selector
     with llm_col:
         with st.popover("⚙ LLM model", width='stretch'):
@@ -146,10 +165,40 @@ def _handle_demo_load() -> None:
 
     ss.conn = conn
     ss.schema = schema
+    ss.tables = {}
     ss.dataset_name = DEMO_NAME
     ss.dataset_meta = meta
     ss.dataset_df = df
     ss.pop("_col_profiles", None)
+    state.reset_query()
+    st.rerun()
+
+
+def _handle_supply_chain_load() -> None:
+    try:
+        conn, tables_schema, meta = load_supply_chain_demo()
+    except Exception as exc:
+        st.error(f"Failed to load supply chain demo: {exc}")
+        return
+
+    ss = st.session_state
+    if ss.get("conn") is not None:
+        try:
+            ss.conn.close()
+        except Exception:
+            pass
+
+    # Flatten tables_schema for widgets that expect a single schema dict
+    flat_schema = {col: dtype for s in tables_schema.values() for col, dtype in s.items()}
+
+    ss.conn = conn
+    ss.schema = flat_schema
+    ss.tables = tables_schema          # full per-table schema for sidebar + JOIN composer
+    ss.dataset_name = SUPPLY_CHAIN_NAME
+    ss.dataset_meta = meta
+    ss.dataset_df = None               # no single dataframe for multi-table
+    ss.pop("_col_profiles", None)
+    ss.last_sql = SUPPLY_CHAIN_SHOWCASE_SQL   # pre-load the showcase JOIN query
     state.reset_query()
     st.rerun()
 

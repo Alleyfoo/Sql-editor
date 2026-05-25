@@ -21,7 +21,11 @@ def render() -> None:
         )
         _render_dataset_card(dataset_name, meta, schema)
         st.divider()
-        if schema:
+        tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
+        if tables:
+            _render_multi_table_schema(tables)
+            st.divider()
+        elif schema:
             _render_schema_profile(schema)
             st.divider()
         _render_recent_runs()
@@ -64,6 +68,33 @@ def _render_dataset_card(name, meta, schema) -> None:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+
+def _render_multi_table_schema(tables: Dict[str, Dict[str, str]]) -> None:
+    """Render schema sections for each table in a multi-table dataset."""
+    st.markdown(
+        '<div class="schema-section-head"><span>Schema</span></div>',
+        unsafe_allow_html=True,
+    )
+    type_chip_class = {"numeric": "type-num", "text": "type-text", "date": "type-date"}
+    for table_name, schema in tables.items():
+        st.markdown(
+            f'<div style="font-size:11px;font-weight:700;letter-spacing:.06em;'
+            f'text-transform:uppercase;color:#C2410C;margin:10px 0 4px 0;">'
+            f'{table_name}</div>',
+            unsafe_allow_html=True,
+        )
+        for col, dtype in schema.items():
+            chip_cls = type_chip_class.get(dtype, "type-text")
+            chip_label = {"numeric": "num", "text": "text", "date": "date"}.get(dtype, dtype)
+            st.markdown(
+                f'<div class="col-row" style="padding:3px 0;">'
+                f'<div class="col-row-head">'
+                f'<span class="col-name" style="font-size:12px;">{col}</span>'
+                f'<span class="type-chip {chip_cls}">{chip_label}</span>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
 
 def _render_schema_profile(schema: Dict[str, str]) -> None:

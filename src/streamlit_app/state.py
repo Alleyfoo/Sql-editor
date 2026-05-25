@@ -12,6 +12,7 @@ def init() -> None:
     ss = st.session_state
     ss.setdefault("conn", None)
     ss.setdefault("schema", {})
+    ss.setdefault("tables", {})   # {table_name: schema} for multi-table datasets
     ss.setdefault("dataset_name", None)
     ss.setdefault("dataset_meta", {})
     ss.setdefault("model", QueryModel(table=TABLE_NAME))
@@ -38,7 +39,9 @@ def init() -> None:
 
 def reset_query() -> None:
     ss = st.session_state
-    ss.model = QueryModel(table=TABLE_NAME)
+    # For multi-table datasets keep the primary table name; fall back to TABLE_NAME
+    primary = next(iter(ss.get("tables", {})), TABLE_NAME)
+    ss.model = QueryModel(table=primary)
     ss.results_df = None
     ss.last_sql = ""
     ss.last_exec_ms = None

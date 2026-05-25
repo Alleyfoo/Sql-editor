@@ -85,6 +85,31 @@ def _make_readonly(conn: sqlite3.Connection) -> None:
     conn.set_authorizer(_readonly_authorizer)
 
 
+def load_multiple_csvs(
+    table_paths: Dict[str, "str | Path"],
+) -> Tuple[sqlite3.Connection, Dict[str, Dict[str, str]]]:
+    """Load several CSVs into one in-memory SQLite connection, each in a named table.
+
+    ``table_paths`` maps SQLite table name → CSV file path.
+    Returns ``(conn, tables_schema)`` where ``tables_schema`` is
+    ``{table_name: {col: type}}``.
+    """
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
+    tables_schema: Dict[str, Dict[str, str]] = {}
+
+    for table_name, path in table_paths.items():
+        csv_path = Path(path)
+        if not csv_path.exists():
+            raise FileNotFoundError(csv_path)
+        df = pd.read_csv(csv_path)
+        df.to_sql(table_name, conn, index=False, if_exists="replace")
+        tables_schema[table_name] = infer_schema(df)
+
+    conn.commit()
+    _make_readonly(conn)
+    return conn, tables_schema
+
+
 def load_csv(path: str | Path) -> Tuple[sqlite3.Connection, Dict[str, str]]:
     """Load a CSV into an in-memory SQLite connection locked read-only.
 
@@ -105,4 +130,4 @@ def load_csv(path: str | Path) -> Tuple[sqlite3.Connection, Dict[str, str]]:
     return conn, schema
 
 
-__all__ = ["load_csv", "infer_schema", "TABLE_NAME", "_make_readonly"]
+__all__ = ["load_csv", "load_multiple_csvs", "infer_schema", "TABLE_NAME", "_make_readonly"]
