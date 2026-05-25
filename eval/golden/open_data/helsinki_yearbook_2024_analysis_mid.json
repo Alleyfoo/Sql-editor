@@ -1,0 +1,307 @@
+{
+  "meta": {
+    "source_pack": "C:\\Users\\pertt\\sql-editor\\data\\open_data\\helsinki_yearbook_2024_analysis_test_set.json",
+    "subset": "mid",
+    "cases_total": 17,
+    "split_rule": "deterministic category/output_type/validator mapping"
+  },
+  "cases": [
+    {
+      "id": "major_district_biggest_projection_gain",
+      "category": "projection_ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.3",
+      "source_title": "V\u00e4est\u00f6 31.12.2000\u20132023 sek\u00e4 v\u00e4est\u00f6ennuste 2038 piireitt\u00e4in ja osa-alueittain",
+      "question": "Which major district is projected to gain the most population between 2023 and 2038, and by how much?",
+      "expected": {
+        "label": "3. Keskinen suurpiiri - Mellersta stordistriktet",
+        "value": 30194,
+        "unit": "persons"
+      },
+      "validator": "top_label_and_value_exact"
+    },
+    {
+      "id": "major_district_projection_top3",
+      "category": "projection_ranking",
+      "output_type": "ranked_list",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.3",
+      "source_title": "V\u00e4est\u00f6 31.12.2000\u20132023 sek\u00e4 v\u00e4est\u00f6ennuste 2038 piireitt\u00e4in ja osa-alueittain",
+      "question": "List the top 3 major districts by projected population gain from 2023 to 2038.",
+      "expected": {
+        "rows": [
+          {
+            "label": "3. Keskinen suurpiiri - Mellersta stordistriktet",
+            "value": 30194
+          },
+          {
+            "label": "7. It\u00e4inen suurpiiri - \u00d6stra stordistriktet",
+            "value": 18144
+          },
+          {
+            "label": "6. Kaakkoinen suurpiiri - Syd\u00f6stra stordistriktet",
+            "value": 16007
+          }
+        ]
+      },
+      "validator": "ranked_list_exact"
+    },
+    {
+      "id": "highest_population_density_major_district_2023",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Alue_ja_ymparisto.xls",
+      "sheet": "1.1",
+      "source_title": "Pinta-ala ja v\u00e4est\u00f6ntiheys suurpiireitt\u00e4in 2023",
+      "question": "Which major district had the highest population density in 2023, and what was the density?",
+      "expected": {
+        "label": "1. Etel\u00e4inen suurpiiri - S\u00f6dra stordistriktet",
+        "value": 6826.96,
+        "unit": "persons per land km\u00b2"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "population_density_top3_2023",
+      "category": "ranking",
+      "output_type": "ranked_list",
+      "workbook": "Alue_ja_ymparisto.xls",
+      "sheet": "1.1",
+      "source_title": "Pinta-ala ja v\u00e4est\u00f6ntiheys suurpiireitt\u00e4in 2023",
+      "question": "List the top 3 major districts by population density in 2023.",
+      "expected": {
+        "rows": [
+          {
+            "label": "1. Etel\u00e4inen suurpiiri - S\u00f6dra stordistriktet",
+            "value": 6826.96
+          },
+          {
+            "label": "3. Keskinen suurpiiri - Mellersta stordistriktet",
+            "value": 6588.07
+          },
+          {
+            "label": "2. L\u00e4ntinen suurpiiri - V\u00e4stra stordistriktet",
+            "value": 3732.66
+          }
+        ]
+      },
+      "validator": "ranked_list_tolerance"
+    },
+    {
+      "id": "wettest_available_year",
+      "category": "max_over_time",
+      "output_type": "year_plus_value",
+      "workbook": "Alue_ja_ymparisto.xls",
+      "sheet": "1.5",
+      "source_title": "Sade, kosteus ja aurinkoisuus 2000\u20132023",
+      "question": "Among the years shown in the table, which year had the highest annual precipitation at Kaisaniemi, and how much was it?",
+      "expected": {
+        "year": 2023,
+        "value": 814.8,
+        "unit": "mm"
+      },
+      "validator": "year_and_value_tolerance"
+    },
+    {
+      "id": "highest_rent_city_2023",
+      "category": "comparison",
+      "output_type": "label_plus_value",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.12",
+      "source_title": "Vuokra-asuntojen keskim\u00e4\u00e4r\u00e4inen neli\u00f6metrivuokra 2022 ja 2023",
+      "question": "Which listed area had the highest average rent per square metre in 2023 for all dwellings, and what was it?",
+      "expected": {
+        "label": "Helsinki",
+        "value": 18.87,
+        "unit": "\u20ac/m\u00b2"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "rent_gap_helsinki_vs_country_2023",
+      "category": "comparison",
+      "output_type": "scalar",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.12",
+      "source_title": "Vuokra-asuntojen keskim\u00e4\u00e4r\u00e4inen neli\u00f6metrivuokra 2022 ja 2023",
+      "question": "What was the 2023 rent gap between Helsinki and the whole country for all dwellings?",
+      "expected": {
+        "value": 3.89,
+        "unit": "\u20ac/m\u00b2"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "rent_ranking_top3_2023",
+      "category": "ranking",
+      "output_type": "ranked_list",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.12",
+      "source_title": "Vuokra-asuntojen keskim\u00e4\u00e4r\u00e4inen neli\u00f6metrivuokra 2022 ja 2023",
+      "question": "List the top 3 listed areas by average 2023 rent per square metre for all dwellings.",
+      "expected": {
+        "rows": [
+          {
+            "label": "Helsinki",
+            "value": 18.87
+          },
+          {
+            "label": "Vantaa",
+            "value": 17.45
+          },
+          {
+            "label": "Espoo ja Kauniainen",
+            "value": 17.3
+          }
+        ]
+      },
+      "validator": "ranked_list_tolerance"
+    },
+    {
+      "id": "major_district_highest_rental_share_2023",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.9",
+      "source_title": "Asuntokantaa kuvaavia tunnuslukuja peruspiireitt\u00e4in ja osa-alueittain 31.12.2023",
+      "question": "Which major district had the highest share of rental dwellings in 2023, and what was the share?",
+      "expected": {
+        "label": "3. Keskinen suurpiiri - Mellersta stordistriktet",
+        "value": 55.34,
+        "unit": "percent"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "highest_unemployment_city_2022",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Tyovoima.xls",
+      "sheet": "11.5",
+      "source_title": "Ty\u00f6tt\u00f6myysaste (%) sukupuolen mukaan 2000\u20132022",
+      "question": "Which listed city had the highest unemployment rate in 2022, and what was the rate?",
+      "expected": {
+        "label": "Oulu",
+        "value": 11.9,
+        "unit": "percent"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "income_highest_age_group_2022",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Tulot_ja_kulutus.xls",
+      "sheet": "13.7",
+      "source_title": "Keskim\u00e4\u00e4r\u00e4iset valtionveron alaiset tulot tulonsaajan sukupuolen ja i\u00e4n mukaan 2014\u20132022",
+      "question": "Which age group had the highest average income subject to state taxation in 2022, and what was the income?",
+      "expected": {
+        "label": "45-54",
+        "value": 60166.83,
+        "unit": "euro/year"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "income_gap_45_54_vs_18_24_2022",
+      "category": "comparison",
+      "output_type": "scalar",
+      "workbook": "Tulot_ja_kulutus.xls",
+      "sheet": "13.7",
+      "source_title": "Keskim\u00e4\u00e4r\u00e4iset valtionveron alaiset tulot tulonsaajan sukupuolen ja i\u00e4n mukaan 2014\u20132022",
+      "question": "What was the income gap in 2022 between the 45\u201354 and 18\u201324 age groups?",
+      "expected": {
+        "value": 46736.56,
+        "unit": "euro/year"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "largest_bankruptcy_industry_2023",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Elinkeinotoiminta.xls",
+      "sheet": "12.5",
+      "source_title": "Vireille pannut konkurssit toimialoittain 2010\u20132023",
+      "question": "Which industry had the highest number of bankruptcy proceedings in Helsinki in 2023, and how many were there?",
+      "expected": {
+        "label": "Palvelut - Tj\u00e4nster",
+        "value": 386,
+        "unit": "cases"
+      },
+      "validator": "top_label_and_value_exact"
+    },
+    {
+      "id": "top_party_citywide_2023",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Vaalit.xls",
+      "sheet": "15.8",
+      "source_title": "Eduskuntavaalit 2023: puolueiden kannatus",
+      "question": "Which party had the highest citywide vote share in the 2023 parliamentary election in Helsinki, and what was the share?",
+      "expected": {
+        "label": "Kok.",
+        "value": 26.41,
+        "unit": "percent"
+      },
+      "validator": "top_label_and_value_tolerance"
+    },
+    {
+      "id": "party_top3_citywide_2023",
+      "category": "ranking",
+      "output_type": "ranked_list",
+      "workbook": "Vaalit.xls",
+      "sheet": "15.8",
+      "source_title": "Eduskuntavaalit 2023: puolueiden kannatus",
+      "question": "List the top 3 parties by citywide vote share in Helsinki in the 2023 parliamentary election.",
+      "expected": {
+        "rows": [
+          {
+            "label": "Kok.",
+            "value": 26.41
+          },
+          {
+            "label": "SDP",
+            "value": 20.93
+          },
+          {
+            "label": "Vihre\u00e4t",
+            "value": 15.31
+          }
+        ]
+      },
+      "validator": "ranked_list_tolerance"
+    },
+    {
+      "id": "most_visited_attraction_2023",
+      "category": "ranking",
+      "output_type": "label_plus_value",
+      "workbook": "Kulttuuri_ja_vapaa-aika.xls",
+      "sheet": "8.5",
+      "source_title": "Helsingin matkailukohteiden k\u00e4vij\u00e4m\u00e4\u00e4r\u00e4t vuosina 2000\u20132023",
+      "question": "Which listed Helsinki attraction had the most visitors in 2023, and how many visitors did it have?",
+      "expected": {
+        "label": "Linnanm\u00e4ki - Borgbacken",
+        "value": 1000000,
+        "unit": "visitors"
+      },
+      "validator": "top_label_and_value_exact"
+    },
+    {
+      "id": "largest_tourism_recovery_2020_2023",
+      "category": "change_over_time",
+      "output_type": "label_plus_value",
+      "workbook": "Kulttuuri_ja_vapaa-aika.xls",
+      "sheet": "8.5",
+      "source_title": "Helsingin matkailukohteiden k\u00e4vij\u00e4m\u00e4\u00e4r\u00e4t vuosina 2000\u20132023",
+      "question": "Which listed attraction had the largest increase in visitors between 2020 and 2023, and what was the increase?",
+      "expected": {
+        "label": "Suomenlinna - Sveaborg",
+        "value": 454000,
+        "unit": "visitors"
+      },
+      "validator": "top_label_and_value_exact"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+[
+  {
+    "handle_id": "distilled_seattle_monthly",
+    "path": "eval/golden/open_data/distilled/seattle_monthly_summary.csv",
+    "description": "Seattle monthly weather distilled summary",
+    "schema": {
+      "month": "date",
+      "precipitation_sum": "numeric",
+      "precipitation_avg": "numeric",
+      "temp_max_avg": "numeric",
+      "rain_days": "numeric",
+      "row_count": "numeric"
+    }
+  },
+  {
+    "handle_id": "distilled_seattle_segment",
+    "path": "eval/golden/open_data/distilled/seattle_weather_segment.csv",
+    "description": "Seattle weather segmented by weather category",
+    "schema": {
+      "weather": "text",
+      "precipitation_avg": "numeric",
+      "temp_max_avg": "numeric",
+      "days": "numeric"
+    }
+  },
+  {
+    "handle_id": "distilled_usgs_daily",
+    "path": "eval/golden/open_data/distilled/usgs_daily_summary.csv",
+    "description": "USGS daily earthquake summary",
+    "schema": {
+      "day": "date",
+      "quake_count": "numeric",
+      "avg_mag": "numeric",
+      "max_mag": "numeric"
+    }
+  },
+  {
+    "handle_id": "distilled_usgs_magtype",
+    "path": "eval/golden/open_data/distilled/usgs_magtype_summary.csv",
+    "description": "USGS summary by magnitude type",
+    "schema": {
+      "magType": "text",
+      "event_count": "numeric",
+      "avg_mag": "numeric",
+      "max_mag": "numeric"
+    }
+  },
+  {
+    "handle_id": "distilled_usgs_recent14",
+    "path": "eval/golden/open_data/distilled/usgs_recent_14d_daily.csv",
+    "description": "USGS recent 14-day daily summary",
+    "schema": {
+      "day": "date",
+      "quake_count": "numeric",
+      "avg_mag": "numeric",
+      "max_mag": "numeric"
+    }
+  }
+]

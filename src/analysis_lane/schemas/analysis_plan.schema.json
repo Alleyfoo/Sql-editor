@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisPlan",
+  "type": "object",
+  "required": [
+    "family",
+    "question",
+    "selected_dimensions",
+    "selected_metrics",
+    "time_dimension",
+    "outputs",
+    "claim_policy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "family": {
+      "type": "string",
+      "enum": [
+        "kpi_summary",
+        "trend",
+        "segment_comparison",
+        "dashboard_design",
+        "follow_up_analysis",
+        "guardrail"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "selected_metrics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "time_dimension": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "insight_report",
+          "chart_spec",
+          "dashboard_spec"
+        ]
+      }
+    },
+    "claim_policy": {
+      "type": "object",
+      "required": [
+        "allow_causal",
+        "restrict_to_descriptive"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "allow_causal": {
+          "type": "boolean"
+        },
+        "restrict_to_descriptive": {
+          "type": "boolean"
+        },
+        "prior_analysis_handle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

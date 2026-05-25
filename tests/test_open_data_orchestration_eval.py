@@ -115,3 +115,9 @@ def test_orchestration_eval_outputs_required_metrics_and_hops(tmp_path: Path) ->
             if hop["chosen_worker"] == "mixed_executor_worker":
                 assert hop["validation_scope"] == "contract"
                 assert hop["validation_result"] is True
+                assert "details" in hop
+                assert "routing_artifact" in hop["details"]
+
+    clean = next(r for r in report["results"] if r["id"] == "clean")
+    cleaning_hop = next(h for h in clean["hops"] if h["chosen_worker"] == "cleaning_worker")
+    assert cleaning_hop["bytes_materialized"] < 20000

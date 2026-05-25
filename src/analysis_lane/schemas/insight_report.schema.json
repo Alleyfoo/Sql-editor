@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InsightReport",
+  "type": "object",
+  "required": [
+    "summary",
+    "insights",
+    "blocked_claims"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "insights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "claim_strength",
+          "confidence",
+          "evidence_fields",
+          "evidence_values",
+          "grounded"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_strength": {
+            "type": "string",
+            "enum": [
+              "descriptive",
+              "correlative",
+              "causal"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evidence_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "evidence_values": {
+            "type": "object"
+          },
+          "grounded": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "blocked_claims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

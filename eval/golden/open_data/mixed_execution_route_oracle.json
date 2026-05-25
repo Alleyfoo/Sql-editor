@@ -2,6 +2,7 @@
   {
     "id": "usgs_top10_strongest",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 50000,
@@ -13,6 +14,7 @@
   {
     "id": "usgs_avg_magtype_top10",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 50000,
@@ -24,6 +26,7 @@
   {
     "id": "usgs_count_per_day_last7",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 50000,
@@ -35,6 +38,7 @@
   {
     "id": "usgs_p90_magnitude",
     "expected_route_family": "hybrid_or_python",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 50000,
@@ -46,6 +50,7 @@
   {
     "id": "usgs_rolling7_daily_counts",
     "expected_route_family": "hybrid_or_python",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 50000,
@@ -57,6 +62,7 @@
   {
     "id": "seattle_avg_tempmax_by_weather",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 10000,
@@ -68,6 +74,7 @@
   {
     "id": "seattle_top10_wettest",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 10000,
@@ -79,6 +86,7 @@
   {
     "id": "seattle_rain_days_per_month",
     "expected_route_family": "pushdown",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 10000,
@@ -90,6 +98,7 @@
   {
     "id": "seattle_rolling30_precip",
     "expected_route_family": "hybrid_or_python",
+    "expected_table_type": "structured_table",
     "header_confidence": 1.0,
     "payload_budget": {
       "max_rows_scanned": 10000,
@@ -101,6 +110,7 @@
   {
     "id": "seattle_top10_wettest_cleaning_first",
     "expected_route_family": "cleaning_first",
+    "expected_table_type": "mixed_header_table",
     "header_confidence": 0.5,
     "payload_budget": {
       "max_rows_scanned": 10000,

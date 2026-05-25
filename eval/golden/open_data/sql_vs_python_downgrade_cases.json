@@ -1,0 +1,38 @@
+[
+  {
+    "id": "seattle_top10_wettest_label_indexed_queryable",
+    "track": "sql_fit",
+    "expect_queryable": true,
+    "table_profile": "label_indexed_report",
+    "dataset": "data/open_data/seattle_weather.csv",
+    "question": "Show the 10 wettest days by precipitation with date and precipitation.",
+    "validator": "seattle_top10_wettest"
+  },
+  {
+    "id": "seattle_avg_temp_mixed_header_queryable",
+    "track": "sql_fit",
+    "expect_queryable": true,
+    "table_profile": "mixed_header_table",
+    "dataset": "data/open_data/seattle_weather.csv",
+    "question": "Average temp_max by weather, highest first.",
+    "validator": "seattle_avg_tempmax_by_weather"
+  },
+  {
+    "id": "usgs_top10_ambiguous_queryable",
+    "track": "sql_fit",
+    "expect_queryable": true,
+    "table_profile": "ambiguous_table",
+    "dataset": "data/open_data/usgs_all_month.csv",
+    "question": "Show the 10 strongest earthquakes with time, place, and magnitude.",
+    "validator": "usgs_top10_strongest"
+  },
+  {
+    "id": "usgs_p90_expected_python",
+    "track": "python_fit",
+    "expect_queryable": false,
+    "table_profile": "label_indexed_report",
+    "dataset": "data/open_data/usgs_all_month.csv",
+    "question": "What is the 90th percentile of magnitude as one number?",
+    "validator": "usgs_p90_magnitude"
+  }
+]

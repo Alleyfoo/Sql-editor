@@ -14,7 +14,13 @@ from .planner import LogicalPlanner
 from .pushdown import DataFramePushdownBackend, ExecutionResult, PushdownBackend, SQLPushdownBackend
 from .python_analytics import PythonAnalyticsExecutor
 from .result_validator import validate_result_schema
-from .router import SourceProfile, route_matches_expectation, route_plan
+from .router import (
+    SourceProfile,
+    apply_route_decision_to_artifact,
+    build_routing_artifact,
+    route_matches_expectation,
+    route_plan,
+)
 
 
 @dataclass
@@ -38,6 +44,7 @@ class EngineRun:
     rows_materialized: int
     bytes_fetched: int
     peak_memory_mb: float
+    routing_artifact: Dict[str, Any]
 
 
 class MixedExecutionEngine:
@@ -61,6 +68,11 @@ class MixedExecutionEngine:
             path = Path.cwd() / path
         source_df = pd.read_csv(path)
         conn, schema = load_csv(path)
+        routing_artifact = build_routing_artifact(
+            question=question,
+            schema=schema,
+            header_confidence=header_confidence,
+        )
         try:
             intent = self.planner.plan(question, schema, source_name=source_name)
             plan = intent.plan
@@ -70,6 +82,11 @@ class MixedExecutionEngine:
             fallback_used = bool(plan.metadata.get("fallback_used", False))
             fallback_reason = str(plan.metadata.get("fallback_reason", ""))
             if not plan_valid:
+                artifact_with_route = apply_route_decision_to_artifact(
+                    routing_artifact,
+                    route="rejected",
+                    route_reason="invalid_plan",
+                )
                 return EngineRun(
                     plan=plan,
                     route="rejected",
@@ -90,6 +107,7 @@ class MixedExecutionEngine:
                     rows_materialized=0,
                     bytes_fetched=0,
                     peak_memory_mb=0.0,
+                    routing_artifact=artifact_with_route,
                 )
 
             profile = SourceProfile(
@@ -117,6 +135,12 @@ class MixedExecutionEngine:
                 execution_route = reroute.route
                 reason = f"cleaning_then_{reroute.reason}"
                 scores = reroute.scores
+
+            artifact_with_route = apply_route_decision_to_artifact(
+                routing_artifact,
+                route=route,
+                route_reason=reason,
+            )
 
             if execution_route == "pushdown":
                 push_backend = self._choose_pushdown_backend(profile)
@@ -208,6 +232,7 @@ class MixedExecutionEngine:
                 rows_materialized=exec_result.rows_materialized,
                 bytes_fetched=exec_result.bytes_fetched,
                 peak_memory_mb=peak_memory_mb,
+                routing_artifact=artifact_with_route,
             )
         finally:
             try:

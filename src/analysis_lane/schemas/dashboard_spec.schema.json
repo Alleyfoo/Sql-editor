@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DashboardSpec",
+  "type": "object",
+  "required": [
+    "title",
+    "tiles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "metric",
+          "chart_ref"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "kpi_card",
+              "chart"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metric": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chart_ref": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

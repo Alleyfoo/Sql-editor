@@ -1,0 +1,207 @@
+{
+  "meta": {
+    "source_pack": "C:\\Users\\pertt\\sql-editor\\data\\open_data\\helsinki_yearbook_2024_analysis_test_set.json",
+    "subset": "hard",
+    "cases_total": 14,
+    "split_rule": "deterministic category/output_type/validator mapping"
+  },
+  "cases": [
+    {
+      "id": "pop_change_2000_2023_abs",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.1",
+      "source_title": "Helsingin v\u00e4est\u00f6 1875\u20132023",
+      "question": "How many people did Helsinki's population grow by from 2000 to 2023?",
+      "expected": {
+        "value": 119026,
+        "unit": "persons"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "pop_change_2000_2023_pct",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.1",
+      "source_title": "Helsingin v\u00e4est\u00f6 1875\u20132023",
+      "question": "What was the percentage growth in Helsinki's population from 2000 to 2023?",
+      "expected": {
+        "value": 21.43,
+        "unit": "percent"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "women_per_1000_men_2023",
+      "category": "ratio",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.1",
+      "source_title": "Helsingin v\u00e4est\u00f6 1875\u20132023",
+      "question": "How many women were there per 1,000 men in Helsinki in 2023?",
+      "expected": {
+        "value": 1094.28,
+        "unit": "women per 1000 men"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "foreign_language_share_2023",
+      "category": "share",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.5",
+      "source_title": "V\u00e4est\u00f6 \u00e4idinkielen mukaan 1950\u20132023",
+      "question": "What share of Helsinki's population was foreign-language-speaking in 2023?",
+      "expected": {
+        "value": 19.55,
+        "unit": "percent"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "foreign_language_growth_2000_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.5",
+      "source_title": "V\u00e4est\u00f6 \u00e4idinkielen mukaan 1950\u20132023",
+      "question": "By how many people did the foreign-language-speaking population grow from 2000 to 2023 in Helsinki?",
+      "expected": {
+        "value": 101085,
+        "unit": "persons"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "dwellings_growth_1970_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.2",
+      "source_title": "Asuntokanta talotyypin mukaan 1970\u20132023",
+      "question": "By how many dwellings did Helsinki's housing stock grow from 1970 to 2023?",
+      "expected": {
+        "value": 204639,
+        "unit": "dwellings"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "apartment_block_share_2023",
+      "category": "share",
+      "output_type": "scalar",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.2",
+      "source_title": "Asuntokanta talotyypin mukaan 1970\u20132023",
+      "question": "What percentage of Helsinki's dwellings were in apartment blocks in 2023?",
+      "expected": {
+        "value": 86.46,
+        "unit": "percent"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "water_nonrevenue_2023",
+      "category": "derived_metric",
+      "output_type": "scalar",
+      "workbook": "Energia_ja_vesihuolto.xls",
+      "sheet": "9.5",
+      "source_title": "Veden pumppaaminen, myynti ja ominaiskulutus 2010\u20132023",
+      "question": "What was the difference between total water pumped and total water sold in the capital region in 2023?",
+      "expected": {
+        "value": 20000,
+        "unit": "1000 m\u00b3"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "water_price_change_2010_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Energia_ja_vesihuolto.xls",
+      "sheet": "9.5",
+      "source_title": "Veden pumppaaminen, myynti ja ominaiskulutus 2010\u20132023",
+      "question": "How much did Helsinki's water price increase from 2010 to 2023?",
+      "expected": {
+        "value": 0.62,
+        "unit": "\u20ac/m\u00b3"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "tram_count_change_2010_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Liikenne.xls",
+      "sheet": "4.1",
+      "source_title": "Joukkoliikenne Helsingiss\u00e4 2010\u20132023",
+      "question": "By how many did the number of trams increase from 2010 to 2023?",
+      "expected": {
+        "value": 44,
+        "unit": "trams"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "metro_vs_tram_placekm_ratio_2023",
+      "category": "ratio",
+      "output_type": "scalar",
+      "workbook": "Liikenne.xls",
+      "sheet": "4.1",
+      "source_title": "Joukkoliikenne Helsingiss\u00e4 2010\u20132023",
+      "question": "What was the ratio of metro place-kilometres to tram place-kilometres in 2023?",
+      "expected": {
+        "value": 5.07,
+        "unit": "ratio"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "injury_accidents_pct_change_1995_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Liikenne.xls",
+      "sheet": "4.7",
+      "source_title": "Poliisin tietoon tulleet tieliikenneonnettomuudet 1995\u20132023",
+      "question": "What was the percentage change in injury road traffic accidents in Helsinki from 1995 to 2023?",
+      "expected": {
+        "value": -65.89,
+        "unit": "percent"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "helsinki_unemployment_change_2020_2022",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Tyovoima.xls",
+      "sheet": "11.5",
+      "source_title": "Ty\u00f6tt\u00f6myysaste (%) sukupuolen mukaan 2000\u20132022",
+      "question": "How many percentage points did Helsinki's unemployment rate change from 2020 to 2022?",
+      "expected": {
+        "value": -4.02,
+        "unit": "percentage points"
+      },
+      "validator": "single_numeric_scalar_tolerance"
+    },
+    {
+      "id": "schools_total_change_2015_2023",
+      "category": "change_over_time",
+      "output_type": "scalar",
+      "workbook": "Koulutus.xls",
+      "sheet": "7.5",
+      "source_title": "Peruskoulut ja lukiot 2015\u20132023",
+      "question": "How many fewer schools did Helsinki have in 2023 than in 2015?",
+      "expected": {
+        "value": 31,
+        "unit": "schools"
+      },
+      "validator": "single_numeric_scalar_exact",
+      "notes": "Expected answer is expressed as a positive drop count."
+    }
+  ]
+}

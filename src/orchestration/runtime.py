@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from eval.open_data_sql_vs_python_eval import VALIDATORS
+from src.ingestion import infer_schema
 from src.mixed_execution import MixedExecutionEngine
 
 from .validation import validate_orchestration_plan
@@ -124,6 +124,7 @@ class WorkerResult:
     schema_validation_result: Optional[bool]
     fallback_reason: str
     summary: str
+    details: Dict[str, Any] = field(default_factory=dict)
     error: Optional[TypedErrorResult] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -137,6 +138,7 @@ class WorkerResult:
             "schema_validation_result": self.schema_validation_result,
             "fallback_reason": self.fallback_reason,
             "summary": self.summary,
+            "details": dict(self.details),
             "error": self.error.to_dict() if self.error else None,
         }
 
@@ -201,6 +203,12 @@ class HandleStore:
 
     def get_value(self, handle_id: str) -> Any:
         return self._values[handle_id]
+
+
+def _validators():
+    """Lazy import so eval module is only needed when validators are actually called."""
+    from eval.open_data_sql_vs_python_eval import VALIDATORS  # noqa: PLC0415
+    return VALIDATORS
 
 
 class CentralCoordinator:
@@ -385,6 +393,7 @@ class CentralCoordinator:
                         "validation_scope": result.validation_scope,
                         "schema_validation_result": result.schema_validation_result,
                         "fallback_reason": result.fallback_reason,
+                        "details": dict(result.details),
                     }
                 )
 
@@ -396,7 +405,7 @@ class CentralCoordinator:
                 out_df = handle_store.get_value(last_output_handle)
                 if isinstance(out_df, pd.DataFrame):
                     try:
-                        final_output_correct = VALIDATORS[validator](out_df, source_df)[0]
+                        final_output_correct = _validators()[validator](out_df, source_df)[0]
                     except Exception:
                         final_output_correct = False
 
@@ -461,15 +470,20 @@ class CentralCoordinator:
             if not isinstance(in_df, pd.DataFrame):
                 err = TypedErrorResult("worker_failed", "cleaning input must be dataframe", worker_id, False)
                 return WorkerResult(False, worker_id, None, 0, False, "contract", None, "invalid_input", "cleaning failed", err)
-            out = in_df.copy()
-            drop_cols = [c for c in out.columns if out[c].isna().all()]
-            if drop_cols:
-                out = out.drop(columns=drop_cols)
+
+            artifact = self._build_cleaning_artifact(in_df)
             out_handle = handle_store.put(
-                out,
+                artifact,
                 handle_type="cleaned_source",
                 source_id=source_manifest.source_id,
-                metadata={"dataset_path": source_manifest.path, "header_confidence": source_manifest.header_confidence},
+                metadata={
+                    "dataset_path": source_manifest.path,
+                    "header_confidence": source_manifest.header_confidence,
+                    "artifact_kind": "cleaning_metadata",
+                    "row_offset": artifact.get("row_offset", 0),
+                    "normalized_schema": artifact.get("normalized_schema", {}),
+                    "header_map": artifact.get("header_map", {}),
+                },
             )
             return WorkerResult(
                 ok=True,
@@ -480,7 +494,7 @@ class CentralCoordinator:
                 validation_scope="contract",
                 schema_validation_result=None,
                 fallback_reason="",
-                summary="cleaning complete",
+                summary="cleaning metadata artifact emitted",
             )
 
         if worker_id == "mixed_executor_worker":
@@ -510,6 +524,9 @@ class CentralCoordinator:
                 metadata={
                     "route": run.route,
                     "execution_route": run.execution_route,
+                    "route_reason": run.route_reason,
+                    "route_scores": run.route_scores,
+                    "routing_artifact": run.routing_artifact,
                     "backend": run.backend,
                     "schema_correct": run.schema_correct,
                 },
@@ -524,6 +541,13 @@ class CentralCoordinator:
                 schema_validation_result=bool(run.schema_correct),
                 fallback_reason=str(run.fallback_reason or ""),
                 summary=f"route={run.route}; backend={run.backend}",
+                details={
+                    "route": run.route,
+                    "execution_route": run.execution_route,
+                    "route_reason": run.route_reason,
+                    "route_scores": run.route_scores,
+                    "routing_artifact": run.routing_artifact,
+                },
                 error=None if (run.plan_valid and run.safety_pass) else TypedErrorResult(
                     "worker_failed",
                     "plan invalid or safety failed",
@@ -588,11 +612,12 @@ class CentralCoordinator:
                 err = TypedErrorResult("worker_failed", "validator input must be dataframe", worker_id, False)
                 return WorkerResult(False, worker_id, None, 0, False, "validator", None, "invalid_input", "validation failed", err)
             validator_name = str(params.get("validator") or validator)
-            if validator_name not in VALIDATORS:
+            validators = _validators()
+            if validator_name not in validators:
                 err = TypedErrorResult("worker_failed", f"unknown validator {validator_name}", worker_id, False)
                 return WorkerResult(False, worker_id, None, 0, False, "validator", None, "unknown_validator", "validation failed", err)
             try:
-                ok, note = VALIDATORS[validator_name](in_df, source_df)
+                ok, note = validators[validator_name](in_df, source_df)
             except Exception as exc:
                 ok, note = False, f"validator raised: {exc}"
             return WorkerResult(
@@ -610,6 +635,32 @@ class CentralCoordinator:
 
         err = TypedErrorResult("worker_failed", f"unknown worker {worker_id}", worker_id, False)
         return WorkerResult(False, worker_id, None, 0, False, "contract", None, "unknown_worker", "worker missing", err)
+
+    @staticmethod
+    def _build_cleaning_artifact(df: pd.DataFrame) -> Dict[str, Any]:
+        # Emit a lightweight cleaning artifact instead of materializing a full
+        # cleaned table copy; this keeps cleaning-first payload costs bounded.
+        non_empty_cols = [c for c in df.columns if df[c].notna().any()]
+        header_map = {str(col): str(col) for col in non_empty_cols}
+        dropped_empty_columns = [str(c) for c in df.columns if c not in non_empty_cols]
+
+        if non_empty_cols:
+            normalized_schema = infer_schema(df[non_empty_cols])
+            non_null_counts = df[non_empty_cols].notna().sum(axis=1)
+            threshold = max(1, len(non_empty_cols) // 2)
+            candidate_rows = non_null_counts[non_null_counts >= threshold]
+            row_offset = int(candidate_rows.index[0]) if not candidate_rows.empty else 0
+        else:
+            normalized_schema = {}
+            row_offset = 0
+
+        return {
+            "artifact_version": "v1",
+            "header_map": header_map,
+            "normalized_schema": normalized_schema,
+            "row_offset": row_offset,
+            "dropped_empty_columns": dropped_empty_columns,
+        }
 
 
 def default_capability_manifest() -> CapabilityManifest:

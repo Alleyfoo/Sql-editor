@@ -17,6 +17,7 @@ from src.llm.natural_language import (
     LLMError,
     OllamaClient,
     RouteToPythonError,
+    detect_python_route_reason,
     nl_to_query_model,
     parse_query_plan,
 )
@@ -428,18 +429,26 @@ def test_nl_to_query_model_routes_percentile_to_python_path() -> None:
             SCHEMA,
             client=stub,  # type: ignore[arg-type]
         )
-    assert "python analytics path" in str(exc.value).lower()
+    msg = str(exc.value).lower()
+    assert "routed away from sql generation" in msg
+    assert "why:" in msg
+    assert "blocked in sql mode:" in msg
+    assert "next best actions:" in msg
+    assert "percentile" in msg
     assert len(stub.calls) == 0
 
 
 def test_nl_to_query_model_routes_percentage_to_python_path() -> None:
     stub = _StubClient({"selected_columns": ["name"]})
-    with pytest.raises(RouteToPythonError):
+    with pytest.raises(RouteToPythonError) as exc:
         nl_to_query_model(
             "For each station, what percentage of trips return to the same station?",
             SCHEMA,
             client=stub,  # type: ignore[arg-type]
         )
+    msg = str(exc.value).lower()
+    assert "blocked in sql mode:" in msg
+    assert "next best actions:" in msg
     assert len(stub.calls) == 0
 
 
@@ -451,6 +460,35 @@ def test_nl_to_query_model_routes_same_station_compare_to_python_path() -> None:
             SCHEMA,
             client=stub,  # type: ignore[arg-type]
         )
+    assert len(stub.calls) == 0
+
+
+def test_detect_python_route_reason_narrow_percentage_pattern_routes_when_ratio_of() -> None:
+    reason = detect_python_route_reason("What percentage of rows are weather = rain?")
+    assert reason == "percentage/rate"
+
+
+def test_detect_python_route_reason_narrow_percentage_pattern_does_not_route_on_share_word() -> None:
+    reason = detect_python_route_reason("Show share_count by country, highest first.")
+    assert reason is None
+
+
+def test_nl_to_query_model_routes_rolling_without_time_column_adds_preprocess_guidance() -> None:
+    schema_no_time = {
+        "id": "numeric",
+        "station": "text",
+        "amount": "numeric",
+    }
+    stub = _StubClient({"selected_columns": ["station"]})
+    with pytest.raises(RouteToPythonError) as exc:
+        nl_to_query_model(
+            "Show 7-day rolling average of amount.",
+            schema_no_time,
+            client=stub,  # type: ignore[arg-type]
+        )
+    msg = str(exc.value).lower()
+    assert "no queryable time column was detected" in msg
+    assert "preprocessing" in msg
     assert len(stub.calls) == 0
 
 

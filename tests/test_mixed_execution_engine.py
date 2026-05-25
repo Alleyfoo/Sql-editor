@@ -105,6 +105,13 @@ def test_engine_pushdown_case_executes_and_validates() -> None:
     assert ok, note
     assert run.schema_correct
     assert run.backend == "dataframe_pushdown"
+    assert run.routing_artifact["table_type"] in {
+        "structured_table",
+        "label_indexed_report",
+        "ambiguous_table",
+        "mixed_header_table",
+    }
+    assert isinstance(run.routing_artifact["reason_codes"], list)
 
 
 def test_engine_percentile_case_routes_non_pushdown() -> None:
@@ -121,6 +128,7 @@ def test_engine_percentile_case_routes_non_pushdown() -> None:
     assert run.schema_correct
     ok, note = VALIDATORS["usgs_p90_magnitude"](run.result.dataframe, source)
     assert ok, note
+    assert "route_" in " ".join(run.routing_artifact["reason_codes"])
 
 
 def test_engine_cleaning_first_route_executes_end_to_end() -> None:
@@ -139,3 +147,5 @@ def test_engine_cleaning_first_route_executes_end_to_end() -> None:
     assert run.schema_correct
     ok, note = VALIDATORS["seattle_top10_wettest"](run.result.dataframe, source)
     assert ok, note
+    assert run.routing_artifact["gate_triggered"] is True
+    assert run.routing_artifact["redirect_reason"]

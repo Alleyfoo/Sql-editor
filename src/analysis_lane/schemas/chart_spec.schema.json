@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChartSpec",
+  "type": "object",
+  "required": [
+    "chart_type",
+    "title",
+    "x_field",
+    "y_field",
+    "series_field",
+    "aggregation",
+    "filters"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "chart_type": {
+      "type": "string",
+      "enum": [
+        "line",
+        "bar",
+        "scatter",
+        "table"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "x_field": {
+      "type": "string",
+      "minLength": 1
+    },
+    "y_field": {
+      "type": "string",
+      "minLength": 1
+    },
+    "series_field": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "aggregation": {
+      "type": "string",
+      "enum": [
+        "sum",
+        "avg",
+        "count",
+        "max",
+        "min",
+        "none"
+      ]
+    },
+    "filters": {
+      "type": "object"
+    }
+  }
+}

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from ..llm.natural_language import LLMConfig, LLMError, OllamaClient, load_llm_config
+from ..llm.natural_language import LLMConfig, LLMError, OllamaClient, load_llm_config, make_llm_client
 from ..llm.result_analysis import AnalysisError, analyze_result_with_llm, fallback_result_analysis
 from .models import (
     AnalysisPlan,
@@ -127,11 +127,12 @@ class AnalysisCoordinator:
         self._llm_client = llm_client
         self._llm_config = llm_config
 
-    def _get_llm_client(self) -> OllamaClient:
+    def _get_llm_client(self):
+        """Return a provider-aware LLM client (Ollama, Groq, OpenAI-compatible)."""
         if self._llm_client is not None:
             return self._llm_client
         cfg = self._llm_config or self._load_config()
-        return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
+        return make_llm_client(cfg)
 
     @staticmethod
     def _load_config() -> LLMConfig:

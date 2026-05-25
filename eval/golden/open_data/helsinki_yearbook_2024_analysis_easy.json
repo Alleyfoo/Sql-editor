@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "source_pack": "C:\\Users\\pertt\\sql-editor\\data\\open_data\\helsinki_yearbook_2024_analysis_test_set.json",
+    "subset": "easy",
+    "cases_total": 4,
+    "split_rule": "deterministic category/output_type/validator mapping"
+  },
+  "cases": [
+    {
+      "id": "pop_total_2023",
+      "category": "lookup",
+      "output_type": "scalar",
+      "workbook": "Vaesto.xls",
+      "sheet": "2.1",
+      "source_title": "Helsingin v\u00e4est\u00f6 1875\u20132023",
+      "question": "What was Helsinki's total population in 2023?",
+      "expected": {
+        "value": 674500,
+        "unit": "persons"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "dwellings_total_2023",
+      "category": "lookup",
+      "output_type": "scalar",
+      "workbook": "Asuminen.xls",
+      "sheet": "3.2",
+      "source_title": "Asuntokanta talotyypin mukaan 1970\u20132023",
+      "question": "How many dwellings were there in Helsinki in 2023?",
+      "expected": {
+        "value": 394373,
+        "unit": "dwellings"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "bankruptcies_total_2023",
+      "category": "lookup",
+      "output_type": "scalar",
+      "workbook": "Elinkeinotoiminta.xls",
+      "sheet": "12.5",
+      "source_title": "Vireille pannut konkurssit toimialoittain 2010\u20132023",
+      "question": "How many bankruptcy proceedings were begun in Helsinki in 2023?",
+      "expected": {
+        "value": 696,
+        "unit": "cases"
+      },
+      "validator": "single_numeric_scalar_exact"
+    },
+    {
+      "id": "city_finnish_language_schools_2023",
+      "category": "lookup",
+      "output_type": "scalar",
+      "workbook": "Koulutus.xls",
+      "sheet": "7.5",
+      "source_title": "Peruskoulut ja lukiot 2015\u20132023",
+      "question": "How many city-run Finnish-language schools were there in 2023?",
+      "expected": {
+        "value": 100,
+        "unit": "schools"
+      },
+      "validator": "single_numeric_scalar_exact"
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisProfile",
+  "type": "object",
+  "required": [
+    "row_count",
+    "column_count",
+    "dimensions",
+    "metrics",
+    "nulls",
+    "summary_stats",
+    "date_coverage",
+    "top_categories",
+    "trend_hints",
+    "anomaly_hints"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "row_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "column_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nulls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "non_null",
+          "null_count",
+          "null_rate"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "non_null": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "null_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "null_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "summary_stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "column",
+          "count",
+          "mean",
+          "std",
+          "min",
+          "p50",
+          "p90",
+          "max"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mean": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "std": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "min": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "p50": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "p90": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "max": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "date_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "column",
+          "min_date",
+          "max_date",
+          "periods"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "min_date": {
+            "type": "string"
+          },
+          "max_date": {
+            "type": "string"
+          },
+          "periods": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "top_categories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "column",
+          "top_values"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "string"
+          },
+          "top_values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "value",
+                "count"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "trend_hints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "column",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "anomaly_hints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "column",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

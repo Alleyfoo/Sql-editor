@@ -48,6 +48,8 @@ class ProbeCase:
     dataset: str
     question: str
     validator: str
+    expect_queryable: bool = True
+    table_profile: str = "structured_table"
 
     @staticmethod
     def from_dict(payload: Dict[str, Any], index: int) -> "ProbeCase":
@@ -74,12 +76,24 @@ class ProbeCase:
         if not isinstance(validator, str) or not validator.strip():
             raise ValueError(f"cases[{index}].validator must be a non-empty string")
 
+        expect_queryable_raw = payload.get("expect_queryable", track == "sql_fit")
+        if not isinstance(expect_queryable_raw, bool):
+            raise ValueError(f"cases[{index}].expect_queryable must be a boolean when provided")
+        expect_queryable = bool(expect_queryable_raw)
+
+        table_profile_raw = payload.get("table_profile", "structured_table")
+        if not isinstance(table_profile_raw, str) or not table_profile_raw.strip():
+            raise ValueError(f"cases[{index}].table_profile must be a non-empty string when provided")
+        table_profile = table_profile_raw.strip()
+
         return ProbeCase(
             id=cid.strip(),
             track=track,
             dataset=dataset.strip(),
             question=question.strip(),
             validator=validator.strip(),
+            expect_queryable=expect_queryable,
+            table_profile=table_profile,
         )
 
 
@@ -672,6 +686,12 @@ def _utc_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _is_visible_downgrade_message(message: str) -> bool:
+    low = (message or "").lower()
+    needed = ["why:", "blocked in sql mode:", "next best actions:"]
+    return all(token in low for token in needed)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
@@ -753,6 +773,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 {
                     "id": case.id,
                     "track": case.track,
+                    "expect_queryable": case.expect_queryable,
+                    "table_profile": case.table_profile,
                     "dataset": case.dataset,
                     "question": case.question,
                     "validator": case.validator,
@@ -764,6 +786,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "result_preview": preview,
                     "error": error,
                     "routed_to_python": routed_to_python,
+                    "downgrade_visible": bool(
+                        routed_to_python and _is_visible_downgrade_message(error or "")
+                    ),
+                    "false_downgrade": bool(case.expect_queryable and routed_to_python),
+                    "blocked_but_queryable": bool(case.expect_queryable and routed_to_python),
                     "latency_ms": latency_ms,
                 }
             )
@@ -783,6 +810,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     routed_total = sum(1 for r in results if r.get("routed_to_python"))
     sql_routed = sum(1 for r in sql_cases if r.get("routed_to_python"))
     py_routed = sum(1 for r in py_cases if r.get("routed_to_python"))
+    queryable_cases = [r for r in results if r.get("expect_queryable")]
+    queryable_total = len(queryable_cases)
+    blocked_but_queryable_count = sum(1 for r in queryable_cases if r.get("blocked_but_queryable"))
+    downgraded_total = sum(1 for r in results if r.get("routed_to_python"))
+    visible_downgrades = sum(1 for r in results if r.get("routed_to_python") and r.get("downgrade_visible"))
 
     summary = {
         "cases_total": total,
@@ -797,6 +829,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         "routed_to_python_total": routed_total,
         "sql_fit_routed_to_python": sql_routed,
         "python_fit_routed_to_python": py_routed,
+        "queryable_intent_total": queryable_total,
+        "blocked_but_queryable_count": blocked_but_queryable_count,
+        "false_downgrade_rate": (blocked_but_queryable_count / queryable_total) if queryable_total else 0.0,
+        "visible_downgrade_rate": (visible_downgrades / downgraded_total) if downgraded_total else 1.0,
         "latency_ms_p50": (
             sorted(latencies)[len(latencies) // 2] if latencies else 0.0
         ),

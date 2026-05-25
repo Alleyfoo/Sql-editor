@@ -32,6 +32,12 @@ from src.mixed_execution import MixedExecutionEngine  # noqa: E402
 DEFAULT_MIXED_CASES = REPO_ROOT / "eval" / "golden" / "open_data" / "mixed_execution_cases.json"
 DEFAULT_ROUTE_ORACLE = REPO_ROOT / "eval" / "golden" / "open_data" / "mixed_execution_route_oracle.json"
 EXPECTED_ROUTE_FAMILIES = {"pushdown", "hybrid_or_python", "cleaning_first"}
+EXPECTED_TABLE_TYPES = {
+    "structured_table",
+    "mixed_header_table",
+    "label_indexed_report",
+    "ambiguous_table",
+}
 
 
 @dataclass(frozen=True)
@@ -40,6 +46,7 @@ class RouteOracleCase:
     expected_route_family: str
     header_confidence: float
     payload_budget: Dict[str, float]
+    expected_table_type: Optional[str] = None
 
     @staticmethod
     def from_dict(payload: Mapping[str, Any], index: int) -> "RouteOracleCase":
@@ -76,11 +83,23 @@ class RouteOracleCase:
                 raise ValueError(f"route_oracle[{index}].payload_budget.{key} must be >= 0")
             cleaned_budget[str(key)] = numeric
 
+        expected_table_type_raw = payload.get("expected_table_type")
+        expected_table_type: Optional[str]
+        if expected_table_type_raw is None:
+            expected_table_type = None
+        else:
+            expected_table_type = str(expected_table_type_raw).strip()
+            if expected_table_type not in EXPECTED_TABLE_TYPES:
+                raise ValueError(
+                    f"route_oracle[{index}].expected_table_type must be one of {sorted(EXPECTED_TABLE_TYPES)}"
+                )
+
         return RouteOracleCase(
             id=cid,
             expected_route_family=expected_route_family,
             header_confidence=header_confidence,
             payload_budget=cleaned_budget,
+            expected_table_type=expected_table_type,
         )
 
 
@@ -152,6 +171,9 @@ def _aggregate(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     by_execution_route: Dict[str, int] = {}
     by_backend: Dict[str, int] = {}
     fallback_reasons: Dict[str, int] = {}
+    classifier_total = 0
+    classifier_correct = 0
+    table_type_confusion_matrix: Dict[str, Dict[str, int]] = {}
     for row in results:
         route = str(row.get("route") or "")
         by_route[route] = by_route.get(route, 0) + 1
@@ -162,6 +184,16 @@ def _aggregate(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         if row.get("fallback_used"):
             reason = str(row.get("fallback_reason") or "unspecified")
             fallback_reasons[reason] = fallback_reasons.get(reason, 0) + 1
+        expected_table_type = row.get("expected_table_type")
+        actual_table_type = row.get("table_type_actual")
+        if expected_table_type:
+            classifier_total += 1
+            exp = str(expected_table_type)
+            act = str(actual_table_type or "")
+            if exp == act:
+                classifier_correct += 1
+            bucket = table_type_confusion_matrix.setdefault(exp, {})
+            bucket[act] = bucket.get(act, 0) + 1
 
     return {
         "cases_total": total,
@@ -200,6 +232,11 @@ def _aggregate(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             "rows_materialized_avg": (sum(rows_mat) / len(rows_mat)) if rows_mat else 0.0,
             "bytes_fetched_avg": (sum(bytes_fetched) / len(bytes_fetched)) if bytes_fetched else 0.0,
             "peak_memory_mb_avg": (sum(peak_mem) / len(peak_mem)) if peak_mem else 0.0,
+        },
+        "table_type_classifier": {
+            "labeled_total": classifier_total,
+            "accuracy": (classifier_correct / classifier_total) if classifier_total else 0.0,
+            "confusion_matrix": table_type_confusion_matrix,
         },
     }
 
@@ -279,6 +316,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             and payload_pass
         )
 
+        table_type_actual = str(run.routing_artifact.get("table_type") or "")
+        expected_table_type = oracle.expected_table_type
+        classifier_correct = (
+            (table_type_actual == expected_table_type)
+            if expected_table_type is not None
+            else None
+        )
+
         results.append(
             {
                 "id": case.id,
@@ -288,10 +333,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "validator": case.validator,
                 "expected_route_family": oracle.expected_route_family,
                 "header_confidence": oracle.header_confidence,
+                "expected_table_type": expected_table_type,
+                "table_type_actual": table_type_actual,
+                "classifier_correct": classifier_correct,
                 "route": run.route,
                 "execution_route": run.execution_route,
                 "route_reason": run.route_reason,
                 "route_scores": run.route_scores,
+                "routing_artifact": run.routing_artifact,
+                "gate_triggered": bool(run.routing_artifact.get("gate_triggered", False)),
+                "redirect_reason": str(run.routing_artifact.get("redirect_reason") or ""),
                 "plan": run.plan.to_dict(),
                 "plan_valid": run.plan_valid,
                 "plan_errors": run.plan_errors,
@@ -326,6 +377,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             "track": row["track"],
             "recommended_route": row["route"],
             "route_reason": row["route_reason"],
+            "gate_triggered": row["gate_triggered"],
+            "redirect_reason": row["redirect_reason"],
+            "table_type": row["routing_artifact"].get("table_type"),
+            "expected_table_type": row["expected_table_type"],
+            "classifier_correct": row["classifier_correct"],
             "expected_route_family": row["expected_route_family"],
             "header_confidence": row["header_confidence"],
         }

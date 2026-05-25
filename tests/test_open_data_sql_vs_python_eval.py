@@ -5,6 +5,8 @@ from pathlib import Path
 import pandas as pd
 
 from eval.open_data_sql_vs_python_eval import (
+    ProbeCase,
+    _is_visible_downgrade_message,
     _validate_hsy_route_highest_avg_distance_min50,
     _validate_hsy_top5_busiest_departure,
     _validate_non_empty_result,
@@ -132,3 +134,45 @@ def test_validate_hsy_route_highest_avg_distance_min50_on_synthetic_data() -> No
     )
     ok, note = _validate_hsy_route_highest_avg_distance_min50(result, source)
     assert ok, note
+
+
+def test_probe_case_defaults_expect_queryable_from_track() -> None:
+    case = ProbeCase.from_dict(
+        {
+            "id": "c1",
+            "track": "sql_fit",
+            "dataset": "data/open_data/seattle_weather.csv",
+            "question": "Show the 10 wettest days by precipitation with date and precipitation.",
+            "validator": "seattle_top10_wettest",
+        },
+        0,
+    )
+    assert case.expect_queryable is True
+    assert case.table_profile == "structured_table"
+
+    case2 = ProbeCase.from_dict(
+        {
+            "id": "c2",
+            "track": "python_fit",
+            "dataset": "data/open_data/usgs_all_month.csv",
+            "question": "What is the 90th percentile of magnitude as one number?",
+            "validator": "usgs_p90_magnitude",
+        },
+        1,
+    )
+    assert case2.expect_queryable is False
+    assert case2.table_profile == "structured_table"
+
+
+def test_visible_downgrade_message_helper() -> None:
+    msg = "\n".join(
+        [
+            "This request was routed away from SQL generation.",
+            "Why: rolling window.",
+            "Blocked in SQL mode: rolling-window analytics.",
+            "Next best actions:",
+            "- Use Python analytics.",
+        ]
+    )
+    assert _is_visible_downgrade_message(msg) is True
+    assert _is_visible_downgrade_message("generic routing error") is False

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import eval.open_data_mixed_execution_eval as mixed_eval
+import pytest
 
 
 def test_mixed_execution_eval_outputs_required_metrics(tmp_path: Path) -> None:
@@ -29,6 +30,7 @@ def test_mixed_execution_eval_outputs_required_metrics(tmp_path: Path) -> None:
         {
             "id": "seattle_top10_wettest",
             "expected_route_family": "pushdown",
+            "expected_table_type": "structured_table",
             "header_confidence": 1.0,
             "payload_budget": {
                 "max_rows_scanned": 10000,
@@ -39,6 +41,7 @@ def test_mixed_execution_eval_outputs_required_metrics(tmp_path: Path) -> None:
         {
             "id": "usgs_p90_magnitude",
             "expected_route_family": "hybrid_or_python",
+            "expected_table_type": "ambiguous_table",
             "header_confidence": 1.0,
             "payload_budget": {
                 "max_rows_scanned": 50000,
@@ -86,12 +89,25 @@ def test_mixed_execution_eval_outputs_required_metrics(tmp_path: Path) -> None:
     assert "fallback_summary" in summary
     assert "safety_summary" in summary
     assert "backend_counts" in summary
+    assert "table_type_classifier" in summary
+    classifier = summary["table_type_classifier"]
+    assert classifier["labeled_total"] == 2
+    assert "accuracy" in classifier
+    assert "confusion_matrix" in classifier
 
     assert len(report["results"]) == 2
     required_row_fields = {
         "plan_valid",
         "route_correct",
         "execution_route",
+        "route_reason",
+        "route_scores",
+        "routing_artifact",
+        "gate_triggered",
+        "redirect_reason",
+        "expected_table_type",
+        "table_type_actual",
+        "classifier_correct",
         "execution_correct",
         "schema_correct",
         "safety_pass",
@@ -108,6 +124,21 @@ def test_mixed_execution_eval_outputs_required_metrics(tmp_path: Path) -> None:
     }
     for row in report["results"]:
         assert required_row_fields.issubset(row.keys())
+        assert isinstance(row["routing_artifact"], dict)
+        if row["expected_table_type"] is not None:
+            assert isinstance(row["classifier_correct"], bool)
+        for key in [
+            "table_type",
+            "has_time_column",
+            "section_number_columns",
+            "date_like_column_names",
+            "recommended_intents",
+            "blocked_intents",
+            "reason_codes",
+            "gate_triggered",
+            "redirect_reason",
+        ]:
+            assert key in row["routing_artifact"]
 
 
 def test_mixed_execution_eval_payload_budget_violation_fails_case(tmp_path: Path) -> None:
@@ -126,6 +157,7 @@ def test_mixed_execution_eval_payload_budget_violation_fails_case(tmp_path: Path
         {
             "id": "seattle_top10_wettest",
             "expected_route_family": "pushdown",
+            "expected_table_type": "structured_table",
             "header_confidence": 1.0,
             "payload_budget": {"max_rows_materialized": 1},
         }
@@ -181,3 +213,40 @@ def test_mixed_execution_eval_route_oracle_must_cover_all_cases(tmp_path: Path) 
         assert False, "expected SystemExit for missing oracle entry"
     except SystemExit as exc:
         assert "route oracle missing case ids" in str(exc)
+
+
+def test_mixed_execution_eval_route_oracle_rejects_invalid_expected_table_type(tmp_path: Path) -> None:
+    cases = [
+        {
+            "id": "seattle_top10_wettest",
+            "track": "sql_fit",
+            "dataset": "data/open_data/seattle_weather.csv",
+            "question": "Show the 10 wettest days by precipitation with date and precipitation.",
+            "validator": "seattle_top10_wettest",
+        }
+    ]
+    cases_path = tmp_path / "mixed_cases.json"
+    cases_path.write_text(json.dumps(cases, indent=2), encoding="utf-8")
+    route_oracle = [
+        {
+            "id": "seattle_top10_wettest",
+            "expected_route_family": "pushdown",
+            "expected_table_type": "not_a_real_table_type",
+            "header_confidence": 1.0,
+            "payload_budget": {"max_rows_materialized": 25},
+        }
+    ]
+    route_oracle_path = tmp_path / "mixed_route_oracle.json"
+    route_oracle_path.write_text(json.dumps(route_oracle, indent=2), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected_table_type"):
+        mixed_eval.main(
+            [
+                "--cases",
+                str(cases_path),
+                "--route-oracle",
+                str(route_oracle_path),
+                "--report-dir",
+                str(tmp_path),
+            ]
+        )
