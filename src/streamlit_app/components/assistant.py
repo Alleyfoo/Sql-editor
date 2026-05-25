@@ -35,7 +35,7 @@ def render() -> None:
                 st.rerun()
 
         # ── Scrollable transcript (fixed height so SQL panel stays visible) ─
-        with st.container(height=380, key="assistant_scroll"):
+        with st.container(height=440, key="assistant_scroll"):
             for entry_idx, entry in enumerate(transcript):
                 role = entry.get("role", "user")
                 if role == "user":
