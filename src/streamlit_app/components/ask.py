@@ -268,13 +268,9 @@ def _handle_ask_multitable(
     try:
         cfg_data = load_config()
         llm_cfg = load_llm_config(cfg_data)
-        # History for multi-table: pass recent (question, sql) pairs so the
-        # LLM can resolve follow-up references like "also filter by category".
-        mt_history = [
-            (e.get("text", ""), "")
-            for e in st.session_state.get("transcript", [])[-6:]
-            if e.get("role") == "user"
-        ]
+        # Pass real (question, sql) history so the LLM can resolve follow-ups
+        # like "also filter by Electronics" or "now group by supplier".
+        mt_history = list(st.session_state.get("nl_history_mt", []))
         with st.spinner("Thinking…"):
             sql = nl_to_raw_sql(
                 text,
@@ -314,14 +310,15 @@ def _handle_ask_multitable(
     state.append_transcript(
         {
             "role": "assistant",
-            "reply": f"Here's a query across your tables — review the SQL and press Run.",
+            "reply": "Here's a query across your tables — review the SQL and press Run.",
             "sql": sql,
             "det_analysis": det_analysis,
             "error": None,
             "source": "multitable_nl",
         }
     )
-    state.push_nl_history(text, "Cross-table query generated.")
+    # Store (question, sql) so follow-up turns have real context
+    state.push_nl_history_mt(text, sql)
     st.rerun()
 
 

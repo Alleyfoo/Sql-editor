@@ -20,6 +20,7 @@ def init() -> None:
     ss.setdefault("last_sql", "")
     ss.setdefault("last_exec_ms", None)
     ss.setdefault("nl_history", [])
+    ss.setdefault("nl_history_mt", [])  # multi-table: [(question, sql), ...]
     ss.setdefault("transcript", [])
     ss.setdefault("nl_status", "")
     ss.setdefault("nl_prefill", "")
@@ -49,6 +50,7 @@ def reset_query() -> None:
     ss.having_rows = []
     ss.order_rows = []
     ss.agg_rows = []
+    ss.nl_history_mt = []
     ss.pop("_raw_sql_lock", None)
 
 
@@ -61,3 +63,10 @@ def push_nl_history(question: str, reply: str) -> None:
     hist.append((question, reply))
     # Trim to configured depth (default 6)
     st.session_state.nl_history = hist[-6:]
+
+
+def push_nl_history_mt(question: str, sql: str) -> None:
+    """Store a (question, sql) pair for multi-table conversation context."""
+    hist = st.session_state.nl_history_mt
+    hist.append((question, sql))
+    st.session_state.nl_history_mt = hist[-6:]

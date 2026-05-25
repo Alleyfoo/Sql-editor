@@ -29,7 +29,9 @@ def render() -> None:
         with clear_col:
             if st.button("Clear", key="assistant_clear", width='stretch'):
                 st.session_state.transcript = []
-                st.session_state["_followup_bank"] = {}
+                st.session_state.nl_history = []
+                st.session_state.nl_history_mt = []
+                st.session_state.pop("_followup_bank", None)
                 st.rerun()
 
         # ── Scrollable transcript (fixed height so SQL panel stays visible) ─
