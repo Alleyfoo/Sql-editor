@@ -27,7 +27,8 @@ from src.llm.natural_language import LLMConfig, load_llm_config
 
 _PROBE_TIMEOUT = 5.0  # generous enough for remote Ollama over the internet
 _SESSION_KEY = "_llm_probe_result"
-_CACHE_TTL = 30.0  # seconds before a re-probe is triggered
+_CACHE_TTL_LOCAL = 30.0    # Ollama: re-probe every 30 s (cheap, catches offline quickly)
+_CACHE_TTL_CLOUD = 300.0   # Cloud APIs: re-probe every 5 min to avoid burning rate-limit quota
 
 
 @dataclass(frozen=True)
@@ -268,13 +269,20 @@ def _probe_ollama(cfg: LLMConfig) -> ProbeResult:
 
 
 def probe_ollama(*, force: bool = False) -> ProbeResult:
-    """Return the cached probe result, re-probing when the TTL has expired."""
+    """Return the cached probe result, re-probing when the TTL has expired.
+
+    Cloud providers (Gemini, Groq) use a 5-minute TTL so routine renders
+    don't burn free-tier rate-limit quota.  Local Ollama uses 30 seconds
+    so the status pill reacts quickly when the server goes offline.
+    """
+    cfg = load_llm_config(load_config() or {})
+    ttl = _CACHE_TTL_LOCAL if cfg.provider.startswith("ollama") else _CACHE_TTL_CLOUD
+
     cached: Optional[Tuple[ProbeResult, float]] = st.session_state.get(_SESSION_KEY)
     if cached is not None and not force:
         result, ts = cached
-        if time.monotonic() - ts < _CACHE_TTL:
+        if time.monotonic() - ts < ttl:
             return result
-    cfg = load_llm_config(load_config() or {})
     result = _do_probe(cfg)
     st.session_state[_SESSION_KEY] = (result, time.monotonic())
     return result

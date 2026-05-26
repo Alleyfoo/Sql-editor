@@ -248,7 +248,7 @@ def _handle_ask_multitable(
     from src.llm.natural_language import LLMError, load_llm_config, nl_to_raw_sql
     from src.streamlit_app import state
 
-    probe = probe_ollama(force=True)
+    probe = probe_ollama()
     if not probe.ok:
         state.append_transcript(
             {
@@ -346,7 +346,7 @@ def _handle_ask(text: str, run_llm_analysis: bool) -> None:
 
     # Heuristic fast-path before LLM.  Force a fresh probe on each Ask
     # so the status pill reflects current Ollama state, not a stale cache.
-    probe = probe_ollama(force=True)
+    probe = probe_ollama()
     fast_path = parse_heuristic(text, schema)
     if fast_path.parsed and fast_path.confidence >= HEURISTIC_FAST_PATH_THRESHOLD:
         _apply_heuristic_result(
