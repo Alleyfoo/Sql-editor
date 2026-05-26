@@ -7,7 +7,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 key   = sys.argv[1] if len(sys.argv) > 1 else input("API key: ").strip()
-model = sys.argv[2] if len(sys.argv) > 2 else "gemini-2.0-flash"
+model = sys.argv[2] if len(sys.argv) > 2 else "gemini-2.5-flash"
 
 print(f"Pinging {model} …")
 req = Request(

@@ -46,7 +46,7 @@ class ProbeResult:
         return self.status == "ok"
 
 
-_GROQ_PROBE_MODEL = "llama-3.1-8b-instant"  # fast + cheap for health checks
+_GROQ_PROBE_MODEL = "llama-3.1-8b-instant"  # fast + cheap for Groq health checks
 
 
 def _groq_http_error_detail(exc: HTTPError) -> str:
@@ -131,6 +131,7 @@ _GROQ_MODELS_FALLBACK = [
 
 
 _GEMINI_MODELS_FALLBACK = [
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
     "gemini-1.5-flash",
