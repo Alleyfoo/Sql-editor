@@ -116,7 +116,8 @@ def main() -> None:
         models = [e["id"] for e in data.get("data", []) if isinstance(e, dict)]
         print(f"   ✓ {len(models)} models: {', '.join(models[:6])}{'…' if len(models) > 6 else ''}")
     except HTTPError as exc:
-        print(f"   ⚠ HTTP {exc.code} (key works for completions — this is fine)")
+        note = "normal if completions passed above" if all_ok else "AND completions failed — account may need verification"
+        print(f"   ⚠ HTTP {exc.code} ({note})")
     except Exception as exc:
         print(f"   ⚠ {exc}")
 
