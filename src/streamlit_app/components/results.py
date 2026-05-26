@@ -12,8 +12,14 @@ def render() -> None:
     elapsed = st.session_state.get("last_exec_ms")
 
     if df is None:
+        tables: dict = st.session_state.get("tables", {})
         dataset_df: Optional[pd.DataFrame] = st.session_state.get("dataset_df")
-        if dataset_df is not None:
+        conn = st.session_state.get("conn")
+
+        if tables and conn:
+            # Multi-table dataset — show one tab per table
+            _render_multitable_preview(tables, conn)
+        elif dataset_df is not None:
             _render_data_preview(dataset_df)
         else:
             st.markdown(
@@ -82,6 +88,68 @@ def render() -> None:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+
+def _render_multitable_preview(tables: dict, conn) -> None:
+    """Show one tab per table for multi-table datasets."""
+    table_names = list(tables.keys())
+    tabs = st.tabs([f"📋 {name}" for name in table_names])
+    for tab, table_name in zip(tabs, table_names):
+        with tab:
+            try:
+                tdf = pd.read_sql_query(
+                    f'SELECT * FROM "{table_name}" LIMIT 500', conn
+                )
+                schema = tables[table_name]
+                n_rows_q = pd.read_sql_query(
+                    f'SELECT COUNT(*) AS n FROM "{table_name}"', conn
+                )
+                n_total = int(n_rows_q.iloc[0, 0])
+                st.markdown(
+                    f'<div class="results-stats-bar">'
+                    f'<span class="rs"><strong>{n_total:,}</strong> rows</span>'
+                    f'<span class="rs-sep">·</span>'
+                    f'<span class="rs"><strong>{len(tdf.columns)}</strong> columns</span>'
+                    f'<span class="rs-sep">·</span>'
+                    f'<span class="rs" style="color:#8E867B;">click a column to ask about it →</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                # Column chips
+                cols_list = list(tdf.columns)
+                per_row = 5
+                for i in range(0, len(cols_list), per_row):
+                    batch = cols_list[i : i + per_row]
+                    widgets = st.columns(len(batch))
+                    for widget, col_name in zip(widgets, batch):
+                        col_type = schema.get(col_name, "text")
+                        if col_type == "numeric":
+                            prefill = f"What is the min, max and average of {col_name}?"
+                        elif col_type == "date":
+                            prefill = f"What is the date range of {col_name}?"
+                        else:
+                            prefill = f"What are the top values of {col_name}?"
+                        with widget:
+                            if st.button(
+                                col_name,
+                                key=f"col_chip_{table_name}_{col_name}",
+                                help=f"Ask: {prefill}",
+                            ):
+                                st.session_state["nl_prefill"] = prefill
+                                st.rerun()
+                # Table
+                st.markdown('<div style="margin-top:6px;"></div>', unsafe_allow_html=True)
+                display_tdf = _decorate_for_display(tdf)
+                st.dataframe(
+                    display_tdf,
+                    column_config=_build_column_config(display_tdf),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                if n_total > 500:
+                    st.caption(f"Showing first 500 of {n_total:,} rows.")
+            except Exception as exc:
+                st.warning(f"Could not preview {table_name}: {exc}")
 
 
 def _render_data_preview(df: pd.DataFrame) -> None:
