@@ -50,7 +50,7 @@ def _probe_groq(cfg: LLMConfig) -> ProbeResult:
     if not cfg.api_key:
         return ProbeResult(
             status="offline", host="api.groq.com", model=cfg.model,
-            detail="no API key configured — add it in ⚙ LLM model",
+            detail="no API key — paste it in ⚙ LLM model",
         )
     url = "https://api.groq.com/openai/v1/models"
     request = Request(
@@ -61,22 +61,37 @@ def _probe_groq(cfg: LLMConfig) -> ProbeResult:
         with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
             body = response.read()
     except HTTPError as exc:
-        detail = "invalid API key (401)" if exc.code == 401 else f"HTTP {exc.code}: {exc.reason}"
+        # Read the response body for Groq's detailed error message
+        try:
+            err_body = exc.read()
+            err_msg = json.loads(err_body).get("error", {}).get("message", exc.reason)
+        except Exception:
+            err_msg = exc.reason
+        detail = f"HTTP {exc.code}: {err_msg}"
         return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=detail)
     except URLError as exc:
-        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=f"unreachable ({exc.reason})")
+        return ProbeResult(
+            status="offline", host="api.groq.com", model=cfg.model,
+            detail=f"network error: {exc.reason}",
+        )
     except (TimeoutError, OSError) as exc:
         return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=str(exc))
 
     try:
         envelope = json.loads(body)
     except json.JSONDecodeError:
-        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail="non-JSON response")
+        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail="non-JSON response from Groq")
 
     available = [
         entry.get("id") for entry in envelope.get("data", [])
         if isinstance(entry, dict) and isinstance(entry.get("id"), str)
     ]
+    if not available:
+        # Got a 200 but empty model list — suspicious
+        return ProbeResult(
+            status="offline", host="api.groq.com", model=cfg.model,
+            detail="Groq responded but returned no models — check key permissions",
+        )
     return ProbeResult(
         status="ok",
         host="api.groq.com",

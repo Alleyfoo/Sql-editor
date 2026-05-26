@@ -339,14 +339,17 @@ def _render_groq_section(cfg) -> None:
 
     probe = probe_ollama()
     if probe.ok:
+        n = len(probe.available_models)
         st.markdown(
-            '<div style="font-size:11px;color:#3F6B45;margin-top:6px;">✓ Connected to Groq</div>',
+            f'<div style="font-size:11px;color:#3F6B45;margin-top:6px;">'
+            f'✓ Connected · {n} model{"s" if n != 1 else ""} available</div>',
             unsafe_allow_html=True,
         )
     else:
+        detail_html = (probe.detail or "not connected").replace("<", "&lt;").replace(">", "&gt;")
         st.markdown(
-            f'<div style="font-size:11px;color:#8A4A11;margin-top:6px;">'
-            f'{probe.detail or "not connected"}</div>',
+            f'<div style="font-size:11px;color:#8A4A11;margin-top:6px;'
+            f'word-break:break-word;">✗ {detail_html}</div>',
             unsafe_allow_html=True,
         )
     if st.button("↺ Test connection", key="groq_refresh", width="stretch"):
