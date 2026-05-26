@@ -45,59 +45,88 @@ class ProbeResult:
         return self.status == "ok"
 
 
+_GROQ_PROBE_MODEL = "llama-3.1-8b-instant"  # fast + cheap for health checks
+
+
+def _groq_http_error_detail(exc: HTTPError) -> str:
+    """Extract Groq's error message from an HTTPError response body."""
+    try:
+        msg = json.loads(exc.read()).get("error", {}).get("message", exc.reason)
+    except Exception:
+        msg = exc.reason
+    return f"HTTP {exc.code}: {msg}"
+
+
 def _probe_groq(cfg: LLMConfig) -> ProbeResult:
-    """Probe Groq by listing available models via GET /openai/v1/models."""
+    """Probe Groq with a minimal chat completion (max_tokens=1).
+
+    We deliberately avoid GET /openai/v1/models because some API key
+    types return 403 on that endpoint even though chat completions work
+    fine.  A tiny completion directly tests what the app actually uses.
+    """
     if not cfg.api_key:
         return ProbeResult(
             status="offline", host="api.groq.com", model=cfg.model,
             detail="no API key — paste it in ⚙ LLM model",
         )
-    url = "https://api.groq.com/openai/v1/models"
+    model = cfg.model or _GROQ_PROBE_MODEL
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 1,
+        "stream": False,
+    }).encode("utf-8")
     request = Request(
-        url,
-        headers={"Authorization": f"Bearer {cfg.api_key}", "Accept": "application/json"},
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg.api_key}",
+        },
     )
     try:
         with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
             body = response.read()
     except HTTPError as exc:
-        # Read the response body for Groq's detailed error message
-        try:
-            err_body = exc.read()
-            err_msg = json.loads(err_body).get("error", {}).get("message", exc.reason)
-        except Exception:
-            err_msg = exc.reason
-        detail = f"HTTP {exc.code}: {err_msg}"
-        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=detail)
+        return ProbeResult(
+            status="offline", host="api.groq.com", model=model,
+            detail=_groq_http_error_detail(exc),
+        )
     except URLError as exc:
         return ProbeResult(
-            status="offline", host="api.groq.com", model=cfg.model,
+            status="offline", host="api.groq.com", model=model,
             detail=f"network error: {exc.reason}",
         )
     except (TimeoutError, OSError) as exc:
-        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=str(exc))
+        return ProbeResult(status="offline", host="api.groq.com", model=model, detail=str(exc))
 
     try:
         envelope = json.loads(body)
     except json.JSONDecodeError:
-        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail="non-JSON response from Groq")
+        return ProbeResult(status="offline", host="api.groq.com", model=model, detail="non-JSON response from Groq")
 
-    available = [
-        entry.get("id") for entry in envelope.get("data", [])
-        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
-    ]
-    if not available:
-        # Got a 200 but empty model list — suspicious
+    if not envelope.get("choices"):
         return ProbeResult(
-            status="offline", host="api.groq.com", model=cfg.model,
-            detail="Groq responded but returned no models — check key permissions",
+            status="offline", host="api.groq.com", model=model,
+            detail=f"unexpected response shape: {str(envelope)[:120]}",
         )
     return ProbeResult(
         status="ok",
         host="api.groq.com",
-        model=cfg.model,
-        available_models=tuple(available),
+        model=model,
+        available_models=tuple(_GROQ_MODELS_FALLBACK),
     )
+
+
+# Static list used when probe can't enumerate models from Groq
+_GROQ_MODELS_FALLBACK = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
+]
 
 
 def _do_probe(cfg: LLMConfig) -> ProbeResult:
