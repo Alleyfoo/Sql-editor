@@ -328,13 +328,117 @@ class OllamaClient:
 # OpenAI-compatible client (Groq, OpenAI, any /v1/chat/completions endpoint)
 # ---------------------------------------------------------------------------
 
+
+class GroqClient:
+    """Minimal stdlib-only Groq Cloud client.
+
+    Uses the OpenAI-compatible ``/openai/v1/chat/completions`` endpoint.
+    Implements the same ``generate_json`` / ``generate_text`` interface as
+    :class:`OllamaClient` so the rest of the pipeline is provider-agnostic.
+    """
+
+    BASE_URL = "https://api.groq.com/openai/v1"
+
+    def __init__(self, model: str, api_key: str, timeout: float = 60.0) -> None:
+        self.model = model
+        self.api_key = api_key
+        self.timeout = float(timeout)
+
+    def _post(self, endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        data = json.dumps(payload).encode("utf-8")
+        request = Request(
+            self.BASE_URL + endpoint,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+        try:
+            with urlopen(request, timeout=self.timeout) as resp:  # nosec - user-configured cloud endpoint
+                body = resp.read()
+        except HTTPError as exc:
+            raw = exc.read()
+            try:
+                msg = json.loads(raw).get("error", {}).get("message", exc.reason)
+            except Exception:
+                msg = exc.reason
+            raise LLMError(f"Groq returned HTTP {exc.code}: {msg}") from exc
+        except URLError as exc:
+            raise LLMError(f"could not reach Groq API: {exc.reason}") from exc
+        except TimeoutError as exc:
+            raise LLMError(f"Groq request timed out after {self.timeout:.0f}s") from exc
+        except OSError as exc:
+            raise LLMError(f"Groq transport error: {exc}") from exc
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"Groq response was not JSON: {exc}") from exc
+
+    @staticmethod
+    def _extract_content(envelope: Dict[str, Any]) -> str:
+        choices = envelope.get("choices") or []
+        if not choices:
+            raise LLMError("Groq response contained no choices")
+        content = choices[0].get("message", {}).get("content", "")
+        if not isinstance(content, str) or not content.strip():
+            raise LLMError("Groq response contained no message content")
+        return content.strip()
+
+    @staticmethod
+    def _strip_fences(text: str) -> str:
+        if text.startswith("```"):
+            lines = text.splitlines()
+            inner = lines[1:]
+            if inner and inner[-1].strip() == "```":
+                inner = inner[:-1]
+            text = "\n".join(inner).strip()
+        return text
+
+    def generate_json(self, system: str, user: str) -> Dict[str, Any]:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+            "stream": False,
+        }
+        envelope = self._post("/chat/completions", payload)
+        content = self._strip_fences(self._extract_content(envelope))
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"model did not return valid JSON: {exc.msg}") from exc
+        if not isinstance(parsed, dict):
+            raise LLMError("model JSON must be an object at the top level")
+        return parsed
+
+    def generate_text(self, system: str, user: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0.0,
+            "stream": False,
+        }
+        envelope = self._post("/chat/completions", payload)
+        return self._extract_content(envelope)
+
+
 # ---------------------------------------------------------------------------
 # Client factory
 # ---------------------------------------------------------------------------
 
 
 def make_llm_client(cfg: LLMConfig):
-    """Return an OllamaClient for the configured host/model."""
+    """Return the right client for the configured provider."""
+    if cfg.provider == "groq":
+        return GroqClient(model=cfg.model, api_key=cfg.api_key, timeout=cfg.timeout)
     return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
 
 
@@ -1323,6 +1427,7 @@ __all__ = [
     "RouteToPythonError",
     "LLMConfig",
     "OllamaClient",
+    "GroqClient",
     "SYSTEM_PROMPT",
     "build_user_prompt",
     "detect_python_route_reason",

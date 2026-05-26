@@ -45,7 +45,49 @@ class ProbeResult:
         return self.status == "ok"
 
 
+def _probe_groq(cfg: LLMConfig) -> ProbeResult:
+    """Probe Groq by listing available models via GET /openai/v1/models."""
+    if not cfg.api_key:
+        return ProbeResult(
+            status="offline", host="api.groq.com", model=cfg.model,
+            detail="no API key configured — add it in ⚙ LLM model",
+        )
+    url = "https://api.groq.com/openai/v1/models"
+    request = Request(
+        url,
+        headers={"Authorization": f"Bearer {cfg.api_key}", "Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
+            body = response.read()
+    except HTTPError as exc:
+        detail = "invalid API key (401)" if exc.code == 401 else f"HTTP {exc.code}: {exc.reason}"
+        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=detail)
+    except URLError as exc:
+        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=f"unreachable ({exc.reason})")
+    except (TimeoutError, OSError) as exc:
+        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail=str(exc))
+
+    try:
+        envelope = json.loads(body)
+    except json.JSONDecodeError:
+        return ProbeResult(status="offline", host="api.groq.com", model=cfg.model, detail="non-JSON response")
+
+    available = [
+        entry.get("id") for entry in envelope.get("data", [])
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
+    ]
+    return ProbeResult(
+        status="ok",
+        host="api.groq.com",
+        model=cfg.model,
+        available_models=tuple(available),
+    )
+
+
 def _do_probe(cfg: LLMConfig) -> ProbeResult:
+    if cfg.provider == "groq":
+        return _probe_groq(cfg)
     return _probe_ollama(cfg)
 
 

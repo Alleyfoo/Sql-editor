@@ -249,7 +249,19 @@ def _handle_upload(uploaded) -> None:
 _PROVIDERS = {
     "ollama":        "Local Ollama",
     "ollama_remote": "Remote Ollama",
+    "groq":          "Groq (cloud)",
 }
+
+# Models available on Groq — ordered by quality / speed trade-off.
+# Update this list as Groq adds / retires models.
+_GROQ_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
+]
 
 
 def _render_model_selector() -> None:
@@ -282,10 +294,72 @@ def _render_model_selector() -> None:
 
     st.markdown('<div style="margin-top:8px;"></div>', unsafe_allow_html=True)
 
-    _render_ollama_section(cfg, selected_provider)
+    if selected_provider == "groq":
+        _render_groq_section(cfg)
+    else:
+        _render_ollama_section(cfg, selected_provider)
 
 
 # ── Per-provider sections ──────────────────────────────────────────────────
+
+def _render_groq_section(cfg) -> None:
+    from src.streamlit_app.llm_health import clear_cache, probe_ollama
+
+    _label("API Key")
+    current_key = cfg.api_key or ""
+    new_key = st.text_input(
+        "API Key",
+        value=current_key,
+        type="password",
+        key="groq_api_key_input",
+        label_visibility="collapsed",
+        placeholder="gsk_…",
+    )
+    if new_key != current_key:
+        # API keys are session-only — never written to disk
+        overrides: dict = st.session_state.get("_llm_overrides", {})
+        overrides["api_key"] = new_key
+        st.session_state["_llm_overrides"] = overrides
+        clear_cache()
+        st.rerun()
+
+    _label("Model", top_margin=True)
+    current_model = cfg.model if cfg.model in _GROQ_MODELS else _GROQ_MODELS[0]
+    selected = st.selectbox(
+        "Model",
+        options=_GROQ_MODELS,
+        index=_GROQ_MODELS.index(current_model),
+        key="groq_model_select",
+        label_visibility="collapsed",
+    )
+    if selected != cfg.model:
+        _save_field_to_config("model", selected)
+        clear_cache()
+        st.rerun()
+
+    probe = probe_ollama()
+    if probe.ok:
+        st.markdown(
+            '<div style="font-size:11px;color:#3F6B45;margin-top:6px;">✓ Connected to Groq</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="font-size:11px;color:#8A4A11;margin-top:6px;">'
+            f'{probe.detail or "not connected"}</div>',
+            unsafe_allow_html=True,
+        )
+    if st.button("↺ Test connection", key="groq_refresh", width="stretch"):
+        clear_cache()
+        st.rerun()
+
+    st.markdown(
+        '<div style="font-size:10px;color:#8E867B;margin-top:8px;line-height:1.4;">'
+        'API key is session-only. For persistence add it to '
+        '<code>.streamlit/secrets.toml</code> or Streamlit Cloud secrets.</div>',
+        unsafe_allow_html=True,
+    )
+
 
 def _render_ollama_section(cfg, provider: str) -> None:
     from src.streamlit_app.llm_health import clear_cache, probe_ollama
