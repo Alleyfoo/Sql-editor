@@ -114,7 +114,7 @@ def render_quick_queries(schema: dict, has_data: bool) -> None:
         st.caption("No quick-query templates fit this schema.")
         return
 
-    per_row = 4
+    per_row = 2
     for i in range(0, len(quicks), per_row):
         batch = quicks[i : i + per_row]
         cols = st.columns(len(batch))
