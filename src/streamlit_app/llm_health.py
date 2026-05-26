@@ -129,9 +129,81 @@ _GROQ_MODELS_FALLBACK = [
 ]
 
 
+_GEMINI_MODELS_FALLBACK = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
+]
+
+
+def _probe_openai_compatible(cfg: LLMConfig, base_url: str, provider_name: str, fallback_models: list) -> ProbeResult:
+    """Generic probe for any OpenAI-compatible endpoint using a max_tokens=1 completion."""
+    if not cfg.api_key:
+        return ProbeResult(
+            status="offline", host=base_url, model=cfg.model,
+            detail=f"no API key — paste it in ⚙ LLM model",
+        )
+    payload = json.dumps({
+        "model": cfg.model,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 1,
+        "stream": False,
+    }).encode("utf-8")
+    request = Request(
+        base_url + "/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {cfg.api_key}",
+        },
+    )
+    try:
+        with urlopen(request, timeout=_PROBE_TIMEOUT) as response:  # nosec
+            body = response.read()
+    except HTTPError as exc:
+        try:
+            err_msg = json.loads(exc.read()).get("error", {}).get("message", exc.reason)
+        except Exception:
+            err_msg = exc.reason
+        return ProbeResult(
+            status="offline", host=base_url, model=cfg.model,
+            detail=f"HTTP {exc.code}: {err_msg}",
+        )
+    except URLError as exc:
+        return ProbeResult(status="offline", host=base_url, model=cfg.model, detail=f"network error: {exc.reason}")
+    except (TimeoutError, OSError) as exc:
+        return ProbeResult(status="offline", host=base_url, model=cfg.model, detail=str(exc))
+
+    try:
+        envelope = json.loads(body)
+    except json.JSONDecodeError:
+        return ProbeResult(status="offline", host=base_url, model=cfg.model, detail="non-JSON response")
+
+    if not envelope.get("choices"):
+        return ProbeResult(
+            status="offline", host=base_url, model=cfg.model,
+            detail=f"unexpected response: {str(envelope)[:120]}",
+        )
+    return ProbeResult(
+        status="ok",
+        host=base_url,
+        model=cfg.model,
+        available_models=tuple(fallback_models),
+    )
+
+
 def _do_probe(cfg: LLMConfig) -> ProbeResult:
     if cfg.provider == "groq":
         return _probe_groq(cfg)
+    if cfg.provider == "gemini":
+        return _probe_openai_compatible(
+            cfg,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            provider_name="Gemini",
+            fallback_models=_GEMINI_MODELS_FALLBACK,
+        )
     return _probe_ollama(cfg)
 
 

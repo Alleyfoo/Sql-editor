@@ -249,11 +249,10 @@ def _handle_upload(uploaded) -> None:
 _PROVIDERS = {
     "ollama":        "Local Ollama",
     "ollama_remote": "Remote Ollama",
+    "gemini":        "Gemini (cloud)",
     "groq":          "Groq (cloud)",
 }
 
-# Models available on Groq — ordered by quality / speed trade-off.
-# Update this list as Groq adds / retires models.
 _GROQ_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
@@ -261,6 +260,14 @@ _GROQ_MODELS = [
     "llama3-8b-8192",
     "gemma2-9b-it",
     "mixtral-8x7b-32768",
+]
+
+_GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
 ]
 
 
@@ -294,15 +301,28 @@ def _render_model_selector() -> None:
 
     st.markdown('<div style="margin-top:8px;"></div>', unsafe_allow_html=True)
 
-    if selected_provider == "groq":
-        _render_groq_section(cfg)
+    if selected_provider == "gemini":
+        _render_cloud_llm_section(cfg, "gemini", _GEMINI_MODELS)
+    elif selected_provider == "groq":
+        _render_cloud_llm_section(cfg, "groq", _GROQ_MODELS)
     else:
         _render_ollama_section(cfg, selected_provider)
 
 
 # ── Per-provider sections ──────────────────────────────────────────────────
 
-def _render_groq_section(cfg) -> None:
+_CLOUD_KEY_PLACEHOLDER = {
+    "gemini": "AIza…",
+    "groq":   "gsk_…",
+}
+
+_CLOUD_KEY_HELP = {
+    "gemini": "Get a free key at aistudio.google.com/apikey",
+    "groq":   "Get a free key at console.groq.com",
+}
+
+
+def _render_cloud_llm_section(cfg, provider: str, model_list: list) -> None:
     from src.streamlit_app.llm_health import clear_cache, probe_ollama
 
     _label("API Key")
@@ -311,9 +331,14 @@ def _render_groq_section(cfg) -> None:
         "API Key",
         value=current_key,
         type="password",
-        key="groq_api_key_input",
+        key=f"{provider}_api_key_input",
         label_visibility="collapsed",
-        placeholder="gsk_…",
+        placeholder=_CLOUD_KEY_PLACEHOLDER.get(provider, "key…"),
+    )
+    st.markdown(
+        f'<div style="font-size:10px;color:#8E867B;margin-bottom:4px;">'
+        f'{_CLOUD_KEY_HELP.get(provider, "")}</div>',
+        unsafe_allow_html=True,
     )
     if new_key != current_key:
         # API keys are session-only — never written to disk
@@ -324,12 +349,12 @@ def _render_groq_section(cfg) -> None:
         st.rerun()
 
     _label("Model", top_margin=True)
-    current_model = cfg.model if cfg.model in _GROQ_MODELS else _GROQ_MODELS[0]
+    current_model = cfg.model if cfg.model in model_list else model_list[0]
     selected = st.selectbox(
         "Model",
-        options=_GROQ_MODELS,
-        index=_GROQ_MODELS.index(current_model),
-        key="groq_model_select",
+        options=model_list,
+        index=model_list.index(current_model),
+        key=f"{provider}_model_select",
         label_visibility="collapsed",
     )
     if selected != cfg.model:
@@ -339,10 +364,8 @@ def _render_groq_section(cfg) -> None:
 
     probe = probe_ollama()
     if probe.ok:
-        n = len(probe.available_models)
         st.markdown(
-            f'<div style="font-size:11px;color:#3F6B45;margin-top:6px;">'
-            f'✓ Connected · {n} model{"s" if n != 1 else ""} available</div>',
+            '<div style="font-size:11px;color:#3F6B45;margin-top:6px;">✓ Connected</div>',
             unsafe_allow_html=True,
         )
     else:
@@ -352,14 +375,13 @@ def _render_groq_section(cfg) -> None:
             f'word-break:break-word;">✗ {detail_html}</div>',
             unsafe_allow_html=True,
         )
-    if st.button("↺ Test connection", key="groq_refresh", width="stretch"):
+    if st.button("↺ Test connection", key=f"{provider}_refresh", width="stretch"):
         clear_cache()
         st.rerun()
 
     st.markdown(
         '<div style="font-size:10px;color:#8E867B;margin-top:8px;line-height:1.4;">'
-        'API key is session-only. For persistence add it to '
-        '<code>.streamlit/secrets.toml</code> or Streamlit Cloud secrets.</div>',
+        'Key is session-only. For persistence add it to Streamlit Cloud secrets.</div>',
         unsafe_allow_html=True,
     )
 

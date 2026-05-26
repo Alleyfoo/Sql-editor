@@ -325,19 +325,19 @@ class OllamaClient:
 
 
 # ---------------------------------------------------------------------------
-# OpenAI-compatible client (Groq, OpenAI, any /v1/chat/completions endpoint)
+# OpenAI-compatible client (Groq, Gemini, any /v1/chat/completions endpoint)
 # ---------------------------------------------------------------------------
 
 
-class GroqClient:
-    """Minimal stdlib-only Groq Cloud client.
+class OpenAICompatibleClient:
+    """Shared stdlib-only client for any OpenAI-compatible chat endpoint.
 
-    Uses the OpenAI-compatible ``/openai/v1/chat/completions`` endpoint.
-    Implements the same ``generate_json`` / ``generate_text`` interface as
-    :class:`OllamaClient` so the rest of the pipeline is provider-agnostic.
+    Subclasses only need to set ``BASE_URL``.  Implements the same
+    ``generate_json`` / ``generate_text`` interface as :class:`OllamaClient`
+    so the rest of the pipeline is provider-agnostic.
     """
 
-    BASE_URL = "https://api.groq.com/openai/v1"
+    BASE_URL: str = ""
 
     def __init__(self, model: str, api_key: str, timeout: float = 60.0) -> None:
         self.model = model
@@ -354,6 +354,7 @@ class GroqClient:
                 "Authorization": f"Bearer {self.api_key}",
             },
         )
+        provider = self.__class__.__name__
         try:
             with urlopen(request, timeout=self.timeout) as resp:  # nosec - user-configured cloud endpoint
                 body = resp.read()
@@ -363,26 +364,26 @@ class GroqClient:
                 msg = json.loads(raw).get("error", {}).get("message", exc.reason)
             except Exception:
                 msg = exc.reason
-            raise LLMError(f"Groq returned HTTP {exc.code}: {msg}") from exc
+            raise LLMError(f"{provider} returned HTTP {exc.code}: {msg}") from exc
         except URLError as exc:
-            raise LLMError(f"could not reach Groq API: {exc.reason}") from exc
+            raise LLMError(f"could not reach {provider}: {exc.reason}") from exc
         except TimeoutError as exc:
-            raise LLMError(f"Groq request timed out after {self.timeout:.0f}s") from exc
+            raise LLMError(f"{provider} request timed out after {self.timeout:.0f}s") from exc
         except OSError as exc:
-            raise LLMError(f"Groq transport error: {exc}") from exc
+            raise LLMError(f"{provider} transport error: {exc}") from exc
         try:
             return json.loads(body)
         except json.JSONDecodeError as exc:
-            raise LLMError(f"Groq response was not JSON: {exc}") from exc
+            raise LLMError(f"{provider} response was not JSON: {exc}") from exc
 
     @staticmethod
     def _extract_content(envelope: Dict[str, Any]) -> str:
         choices = envelope.get("choices") or []
         if not choices:
-            raise LLMError("Groq response contained no choices")
+            raise LLMError("response contained no choices")
         content = choices[0].get("message", {}).get("content", "")
         if not isinstance(content, str) or not content.strip():
-            raise LLMError("Groq response contained no message content")
+            raise LLMError("response contained no message content")
         return content.strip()
 
     @staticmethod
@@ -430,6 +431,20 @@ class GroqClient:
         return self._extract_content(envelope)
 
 
+class GroqClient(OpenAICompatibleClient):
+    """Groq Cloud — https://api.groq.com/openai/v1"""
+    BASE_URL = "https://api.groq.com/openai/v1"
+
+
+class GeminiClient(OpenAICompatibleClient):
+    """Google Gemini via the OpenAI-compatible endpoint.
+
+    Get a free API key at https://aistudio.google.com/apikey
+    Base URL: https://generativelanguage.googleapis.com/v1beta/openai
+    """
+    BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+
 # ---------------------------------------------------------------------------
 # Client factory
 # ---------------------------------------------------------------------------
@@ -439,6 +454,8 @@ def make_llm_client(cfg: LLMConfig):
     """Return the right client for the configured provider."""
     if cfg.provider == "groq":
         return GroqClient(model=cfg.model, api_key=cfg.api_key, timeout=cfg.timeout)
+    if cfg.provider == "gemini":
+        return GeminiClient(model=cfg.model, api_key=cfg.api_key, timeout=cfg.timeout)
     return OllamaClient(host=cfg.host, model=cfg.model, timeout=cfg.timeout)
 
 
@@ -1427,7 +1444,9 @@ __all__ = [
     "RouteToPythonError",
     "LLMConfig",
     "OllamaClient",
+    "OpenAICompatibleClient",
     "GroqClient",
+    "GeminiClient",
     "SYSTEM_PROMPT",
     "build_user_prompt",
     "detect_python_route_reason",
