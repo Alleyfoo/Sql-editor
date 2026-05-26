@@ -59,9 +59,9 @@ def run() -> None:
 
     with center_col:
         schema_strip.render()
-        sql_preview.render()
-        st.markdown("---")
         results.render()
+        st.markdown("---")
+        sql_preview.render()
 
     with chat_col:
         with st.container(border=True, key="chat_panel"):
