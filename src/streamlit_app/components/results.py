@@ -12,12 +12,16 @@ def render() -> None:
     elapsed = st.session_state.get("last_exec_ms")
 
     if df is None:
-        st.markdown(
-            '<div style="padding:32px;text-align:center;color:#8E867B;font-size:13px;">'
-            "Run a query to see results."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        dataset_df: Optional[pd.DataFrame] = st.session_state.get("dataset_df")
+        if dataset_df is not None:
+            _render_data_preview(dataset_df)
+        else:
+            st.markdown(
+                '<div style="padding:48px;text-align:center;color:#8E867B;font-size:13px;">'
+                "Load a CSV to get started."
+                "</div>",
+                unsafe_allow_html=True,
+            )
         return
 
     # Compact stats bar
@@ -78,6 +82,61 @@ def render() -> None:
         f'</div>',
         unsafe_allow_html=True,
     )
+
+
+def _render_data_preview(df: pd.DataFrame) -> None:
+    """Show the raw loaded dataset with clickable column chips above it."""
+    n_rows, n_cols = df.shape
+    schema: dict = st.session_state.get("schema", {})
+
+    # Stats bar
+    st.markdown(
+        f'<div class="results-stats-bar">'
+        f'<span class="rs"><strong>{n_rows:,}</strong> rows</span>'
+        f'<span class="rs-sep">·</span>'
+        f'<span class="rs"><strong>{n_cols}</strong> columns</span>'
+        f'<span class="rs-sep">·</span>'
+        f'<span class="rs" style="color:#8E867B;">click a column to ask about it →</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Column chips — click to prefill the ask bar with a type-aware question
+    cols_list = list(df.columns)
+    per_row = 5
+    for i in range(0, len(cols_list), per_row):
+        batch = cols_list[i : i + per_row]
+        widgets = st.columns(len(batch))
+        for widget, col_name in zip(widgets, batch):
+            col_type = schema.get(col_name, "text")
+            if col_type == "numeric":
+                prefill = f"What is the min, max and average of {col_name}?"
+            elif col_type == "date":
+                prefill = f"What is the date range of {col_name}?"
+            else:
+                prefill = f"What are the top values of {col_name}?"
+            with widget:
+                if st.button(
+                    col_name,
+                    key=f"col_chip_{col_name}",
+                    help=f"Ask: {prefill}",
+                ):
+                    st.session_state["nl_prefill"] = prefill
+                    st.rerun()
+
+    # Preview table
+    st.markdown('<div style="margin-top:6px;"></div>', unsafe_allow_html=True)
+    preview = df.head(500)
+    display_df = _decorate_for_display(preview)
+    col_cfg = _build_column_config(display_df)
+    st.dataframe(
+        display_df,
+        column_config=col_cfg,
+        use_container_width=True,
+        hide_index=True,
+    )
+    if n_rows > 500:
+        st.caption(f"Showing first 500 of {n_rows:,} rows. Run a query to filter and aggregate.")
 
 
 def _decorate_for_display(df: pd.DataFrame) -> pd.DataFrame:
