@@ -120,8 +120,9 @@ def _render_multitable_preview(tables: dict, conn) -> None:
                 per_row = 5
                 for i in range(0, len(cols_list), per_row):
                     batch = cols_list[i : i + per_row]
-                    widgets = st.columns(len(batch))
-                    for widget, col_name in zip(widgets, batch):
+                    # Always use per_row columns to maintain uniform width
+                    widgets = st.columns(per_row)
+                    for idx, col_name in enumerate(batch):
                         col_type = schema.get(col_name, "text")
                         if col_type == "numeric":
                             prefill = f"What is the min, max and average of {col_name}?"
@@ -129,7 +130,7 @@ def _render_multitable_preview(tables: dict, conn) -> None:
                             prefill = f"What is the date range of {col_name}?"
                         else:
                             prefill = f"What are the top values of {col_name}?"
-                        with widget:
+                        with widgets[idx]:
                             if st.button(
                                 col_name,
                                 key=f"col_chip_{table_name}_{col_name}",
@@ -174,8 +175,9 @@ def _render_data_preview(df: pd.DataFrame) -> None:
     per_row = 5
     for i in range(0, len(cols_list), per_row):
         batch = cols_list[i : i + per_row]
-        widgets = st.columns(len(batch))
-        for widget, col_name in zip(widgets, batch):
+        # Always use per_row columns to maintain uniform width
+        widgets = st.columns(per_row)
+        for idx, col_name in enumerate(batch):
             col_type = schema.get(col_name, "text")
             if col_type == "numeric":
                 prefill = f"What is the min, max and average of {col_name}?"
@@ -183,7 +185,7 @@ def _render_data_preview(df: pd.DataFrame) -> None:
                 prefill = f"What is the date range of {col_name}?"
             else:
                 prefill = f"What are the top values of {col_name}?"
-            with widget:
+            with widgets[idx]:
                 if st.button(
                     col_name,
                     key=f"col_chip_{col_name}",

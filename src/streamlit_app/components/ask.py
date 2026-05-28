@@ -57,7 +57,7 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-        col_input, col_ask, col_analyze = st.columns([1, 0.13, 0.21])
+        col_input, col_ask, col_analyze = st.columns([3, 1, 1.5])
         with col_input:
             text = st.text_input(
                 "ask",
