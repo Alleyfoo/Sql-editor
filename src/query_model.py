@@ -139,6 +139,9 @@ AGGREGATION_FUNCTIONS = (
 ORDER_DIRECTIONS = ("ASC", "DESC")
 DATE_BUCKET_GRAINS = ("day", "month", "year")
 
+# JOIN types supported by SQLite
+JOIN_TYPES = ("INNER", "LEFT", "RIGHT", "FULL")
+
 # Maximum decimal places allowed via numeric formatting.
 MAX_FORMAT_DECIMALS = 10
 
@@ -185,7 +188,7 @@ class Filter:
 
     def to_sql(self) -> str:
         op = self.operator.upper()
-        col = quote_ident(self.column)
+        col = self._qualify_column(self.column)
         if op in _NULLARY_OPERATORS:
             return f"{col} {op}"
         if op in _BINARY_RANGE_OPERATORS:
@@ -196,6 +199,14 @@ class Filter:
             lo, hi = self.value
             return f"{col} BETWEEN {quote_value(lo)} AND {quote_value(hi)}"
         return f"{col} {op} {quote_value(self.value)}"
+
+    @staticmethod
+    def _qualify_column(column: str) -> str:
+        """Quote a column name, handling table-qualified names (table.column)."""
+        if "." in column:
+            table, col = column.split(".", 1)
+            return f"{quote_ident(table)}.{quote_ident(col)}"
+        return quote_ident(column)
 
 
 @dataclass
@@ -243,6 +254,32 @@ class Aggregation:
 
 
 @dataclass
+class Join:
+    """A single JOIN clause: ``left_table.left_col = right_table.right_col``.
+
+    Phase 5b: visual JOIN composer for multi-table queries.
+    """
+
+    left_table: str
+    left_col: str
+    right_table: str
+    right_col: str
+    join_type: str = "INNER"  # INNER, LEFT, RIGHT, FULL
+
+    def to_sql(self) -> str:
+        """Emit the JOIN clause (without the leading FROM)."""
+        jt = (self.join_type or "INNER").strip().upper()
+        if jt not in JOIN_TYPES:
+            raise ValueError(
+                f"invalid JOIN type: {self.join_type!r} "
+                f"(must be one of {JOIN_TYPES})"
+            )
+        left = f"{quote_ident(self.left_table)}.{quote_ident(self.left_col)}"
+        right = f"{quote_ident(self.right_table)}.{quote_ident(self.right_col)}"
+        return f"{jt} JOIN {quote_ident(self.right_table)} ON {left} = {right}"
+
+
+@dataclass
 class QueryModel:
     """Current visual-query-builder state.
 
@@ -264,6 +301,10 @@ class QueryModel:
     # Empty string when the model was not involved (visual composer path).
     reply: str = ""
 
+    # Phase 5b — JOIN clauses for multi-table queries.
+    # When non-empty, columns should be table-qualified (table.column).
+    joins: list = field(default_factory=list)
+
     # Optional per-column formatting hints supplied by the LLM.
     # Keys are column names; values are ColumnFormat instances.
     column_formats: Dict[str, "ColumnFormat"] = field(default_factory=dict)
@@ -281,9 +322,16 @@ class QueryModel:
 
         select_clause = self._select_clause()
         from_clause = f"FROM {quote_ident(self.table)}"
+
+        # Phase 5b: emit JOIN clauses after FROM
+        join_clauses = []
+        for join in self.joins:
+            join_clauses.append(join.to_sql())
+
         where_clause = self._where_clause(self.filters)
 
         parts = [f"SELECT {select_clause}", from_clause]
+        parts.extend(join_clauses)
         if where_clause:
             parts.append(f"WHERE {where_clause}")
         if self.group_by:
@@ -365,21 +413,32 @@ class QueryModel:
     def _bucket_expr(self, column: str, grain: str) -> str:
         if grain == "day":
             # Timestamps are ISO-like text; day bucket → YYYY-MM-DD
-            return f"substr({quote_ident(column)}, 1, 10)"
+            return f"substr({self._qualify_column(column)}, 1, 10)"
         if grain == "month":
             # Month bucket → YYYY-MM (first 7 chars of ISO date)
-            return f"substr({quote_ident(column)}, 1, 7)"
+            return f"substr({self._qualify_column(column)}, 1, 7)"
         if grain == "year":
             # Year bucket → YYYY (first 4 chars of ISO date)
-            return f"substr({quote_ident(column)}, 1, 4)"
+            return f"substr({self._qualify_column(column)}, 1, 4)"
         raise ValueError(f"unsupported date bucket grain: {grain!r}")
+
+    def _qualify_column(self, column: str) -> str:
+        """Quote a column name, handling table-qualified names (table.column).
+
+        When JOINs are present, columns may be specified as 'table.column'.
+        This method splits on '.' and quotes each part separately.
+        """
+        if "." in column:
+            table, col = column.split(".", 1)
+            return f"{quote_ident(table)}.{quote_ident(col)}"
+        return quote_ident(column)
 
     def _select_expr(self, column: str, fmt: Dict[str, ColumnFormat]) -> str:
         grain = (self.date_buckets or {}).get(column)
         if grain:
             expr = self._bucket_expr(column, grain)
             return f"{expr} AS {quote_ident(self._bucket_alias(column, grain))}"
-        base = quote_ident(column)
+        base = self._qualify_column(column)
         if column in fmt:
             return fmt[column].apply(base)
         return base
@@ -388,13 +447,13 @@ class QueryModel:
         grain = (self.date_buckets or {}).get(column)
         if grain:
             return self._bucket_expr(column, grain)
-        return quote_ident(column)
+        return self._qualify_column(column)
 
     def _order_expr(self, column: str) -> str:
         grain = (self.date_buckets or {}).get(column)
         if grain:
             return quote_ident(self._bucket_alias(column, grain))
-        return quote_ident(column)
+        return self._qualify_column(column)
 
     @staticmethod
     def _where_clause(filters: list) -> str:
@@ -473,6 +532,7 @@ def _assert_select_only(sql: str) -> None:
 __all__ = [
     "Filter",
     "Aggregation",
+    "Join",
     "ColumnFormat",
     "QueryModel",
     "OPERATORS_BY_TYPE",
@@ -482,6 +542,7 @@ __all__ = [
     "AGGREGATION_FUNCTIONS",
     "ORDER_DIRECTIONS",
     "DATE_BUCKET_GRAINS",
+    "JOIN_TYPES",
     "MAX_FORMAT_DECIMALS",
     "quote_ident",
     "quote_value",

@@ -6,9 +6,11 @@ import streamlit as st
 
 from src.query_model import (
     AGGREGATION_FUNCTIONS,
+    JOIN_TYPES,
     OPERATORS_BY_TYPE,
     Aggregation,
     Filter,
+    Join,
     QueryModel,
 )
 
@@ -19,7 +21,14 @@ def render() -> None:
 
     schema: Dict[str, str] = st.session_state.schema
     model: QueryModel = st.session_state.model
-    cols = list(schema.keys())
+    tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
+    relationships: list = st.session_state.get("relationships", [])
+
+    # Build column list: use qualified names (table.column) for multi-table
+    if tables:
+        cols = [f"{table}.{col}" for table, schema_dict in tables.items() for col in schema_dict.keys()]
+    else:
+        cols = list(schema.keys())
 
     with st.container(key="composer_panel"):
         # Header row — inside the panel so it shares the border
@@ -41,6 +50,8 @@ def render() -> None:
             sc.button("Save ↗", key="cp_save", disabled=True, width='stretch')
 
         _select_section(schema, model, cols)
+        if tables:
+            _join_section(tables, model, relationships)
         _where_section(schema, model, cols)
         _group_agg_section(schema, model, cols)
         _having_section(schema, model, cols)
@@ -103,13 +114,171 @@ def _select_section(schema, model: QueryModel, cols: List[str]) -> None:
             st.rerun()
 
 
+# ── JOIN ──────────────────────────────────────────────────────────────────────
+
+def _join_section(
+    tables: Dict[str, Dict[str, str]],
+    model: QueryModel,
+    relationships: list,
+) -> None:
+    """Visual JOIN composer for multi-table queries."""
+    join_rows: List[dict] = st.session_state.get("join_rows", [])
+    n_joins = len(join_rows)
+    summary = f"{n_joins} join{'s' if n_joins != 1 else ''}" if n_joins else "no joins"
+
+    with _section(2, "JOIN", summary, count=n_joins or None, expanded=True):
+        # Show detected relationships as quick-add buttons
+        if relationships:
+            st.markdown(
+                '<div class="cs-subhead">Detected relationships</div>',
+                unsafe_allow_html=True,
+            )
+            for i, rel in enumerate(relationships):
+                left = f"{rel['left_table']}.{rel['left_col']}"
+                right = f"{rel['right_table']}.{rel['right_col']}"
+                label = f"{left} = {right}"
+
+                # Check if this relationship is already added
+                already_added = any(
+                    jr.get("left_table") == rel["left_table"]
+                    and jr.get("left_col") == rel["left_col"]
+                    and jr.get("right_table") == rel["right_table"]
+                    and jr.get("right_col") == rel["right_col"]
+                    for jr in join_rows
+                )
+
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(
+                        f'<div style="font-size:12px;color:var(--ink-2);padding:4px 0;">{label}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with col2:
+                    if already_added:
+                        st.markdown(
+                            '<div style="font-size:11px;color:var(--ink-4);padding:4px 0;">✓ Added</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        if st.button("Add", key=f"rel_add_{i}", width='stretch'):
+                            join_rows.append({
+                                "left_table": rel["left_table"],
+                                "left_col": rel["left_col"],
+                                "right_table": rel["right_table"],
+                                "right_col": rel["right_col"],
+                                "join_type": "INNER",
+                            })
+                            st.session_state.join_rows = join_rows
+                            st.session_state.pop("_raw_sql_lock", None)
+                            st.rerun()
+
+        # Manual JOIN configuration
+        st.markdown('<div class="cs-subhead">Manual joins</div>', unsafe_allow_html=True)
+        to_remove = None
+        table_names = list(tables.keys())
+
+        for i, row in enumerate(join_rows):
+            c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 2, 2, 0.5], gap="small")
+
+            with c1:
+                left_table = st.selectbox(
+                    "left_table",
+                    table_names,
+                    index=table_names.index(row["left_table"]) if row.get("left_table") in table_names else 0,
+                    key=f"join_lt_{i}",
+                    label_visibility="collapsed",
+                )
+                row["left_table"] = left_table
+
+            with c2:
+                left_cols = list(tables[left_table].keys())
+                left_col = st.selectbox(
+                    "left_col",
+                    left_cols,
+                    index=left_cols.index(row["left_col"]) if row.get("left_col") in left_cols else 0,
+                    key=f"join_lc_{i}",
+                    label_visibility="collapsed",
+                )
+                row["left_col"] = left_col
+
+            with c3:
+                st.markdown(
+                    '<div style="text-align:center;padding:8px 0;font-size:14px;color:var(--ink-3);">=</div>',
+                    unsafe_allow_html=True,
+                )
+
+            with c4:
+                right_table = st.selectbox(
+                    "right_table",
+                    table_names,
+                    index=table_names.index(row["right_table"]) if row.get("right_table") in table_names else 0,
+                    key=f"join_rt_{i}",
+                    label_visibility="collapsed",
+                )
+                row["right_table"] = right_table
+
+            with c5:
+                right_cols = list(tables[right_table].keys())
+                right_col = st.selectbox(
+                    "right_col",
+                    right_cols,
+                    index=right_cols.index(row["right_col"]) if row.get("right_col") in right_cols else 0,
+                    key=f"join_rc_{i}",
+                    label_visibility="collapsed",
+                )
+                row["right_col"] = right_col
+
+            with c6:
+                if st.button("×", key=f"join_rm_{i}"):
+                    to_remove = i
+
+        if to_remove is not None:
+            join_rows.pop(to_remove)
+            st.session_state.join_rows = join_rows
+            st.session_state.pop("_raw_sql_lock", None)
+            st.rerun()
+
+        # Add manual JOIN button
+        if st.button("＋ Add join", key="join_add"):
+            # Default to first two tables if available
+            default_left = table_names[0] if table_names else ""
+            default_right = table_names[1] if len(table_names) > 1 else (table_names[0] if table_names else "")
+            default_left_col = list(tables[default_left].keys())[0] if default_left and default_left in tables else ""
+            default_right_col = list(tables[default_right].keys())[0] if default_right and default_right in tables else ""
+
+            join_rows.append({
+                "left_table": default_left,
+                "left_col": default_left_col,
+                "right_table": default_right,
+                "right_col": default_right_col,
+                "join_type": "INNER",
+            })
+            st.session_state.join_rows = join_rows
+            st.session_state.pop("_raw_sql_lock", None)
+            st.rerun()
+
+        # Sync to model
+        model.joins = []
+        for row in join_rows:
+            try:
+                model.joins.append(Join(
+                    left_table=row["left_table"],
+                    left_col=row["left_col"],
+                    right_table=row["right_table"],
+                    right_col=row["right_col"],
+                    join_type=row.get("join_type", "INNER"),
+                ))
+            except Exception:
+                pass
+
+
 # ── WHERE ─────────────────────────────────────────────────────────────────────
 
 def _where_section(schema, model: QueryModel, cols: List[str]) -> None:
     rows: List[dict] = st.session_state.get("where_rows", [])
     summary = _filter_summary(rows) if rows else "no filters"
 
-    with _section(2, "WHERE", summary, count=len(rows) or None, expanded=True):
+    with _section(3, "WHERE", summary, count=len(rows) or None, expanded=True):
         _filter_rows_ui(schema, cols, "where_rows", model.filters)
 
 
@@ -255,7 +424,7 @@ def _group_agg_section(schema, model: QueryModel, cols: List[str]) -> None:
         if (n_group or n_agg) else "no grouping"
     )
 
-    with _section(3, "GROUP BY · Aggregate", summary, count=n_total, expanded=False):
+    with _section(4, "GROUP BY · Aggregate", summary, count=n_total, expanded=False):
         st.markdown('<div class="cs-subhead">Group by</div>', unsafe_allow_html=True)
         new_grp = st.multiselect(
             "GROUP BY",
@@ -336,7 +505,7 @@ def _having_section(schema, model: QueryModel, cols: List[str]) -> None:
     has_group = bool(model.group_by)
     summary = _filter_summary(having_rows) if having_rows else ("add GROUP BY first" if not has_group else "no filters")
 
-    with _section(4, "HAVING", summary, count=len(having_rows) or None, expanded=False):
+    with _section(5, "HAVING", summary, count=len(having_rows) or None, expanded=False):
         if not has_group:
             st.markdown(
                 '<div class="having-empty">Add a GROUP BY column above to enable HAVING.</div>',
@@ -356,7 +525,7 @@ def _order_limit_section(schema, model: QueryModel, cols: List[str]) -> None:
     )
     summary = f"{order_summary} · LIMIT {limit_val}" if order_rows else f"LIMIT {limit_val}"
 
-    with _section(5, "ORDER BY · LIMIT", summary, count=len(order_rows) or None, expanded=True):
+    with _section(6, "ORDER BY · LIMIT", summary, count=len(order_rows) or None, expanded=True):
         to_remove = None
         for i, row in enumerate(order_rows):
             c1, c2, c3 = st.columns([5, 3, 0.6], gap="small")

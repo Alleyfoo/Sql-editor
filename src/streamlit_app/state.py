@@ -37,6 +37,7 @@ def init() -> None:
     ss.setdefault("having_rows", [])
     ss.setdefault("order_rows", [])
     ss.setdefault("agg_rows", [])
+    ss.setdefault("join_rows", [])  # Phase 5b: JOIN configuration
 
 
 def reset_query() -> None:
@@ -51,6 +52,7 @@ def reset_query() -> None:
     ss.having_rows = []
     ss.order_rows = []
     ss.agg_rows = []
+    ss.join_rows = []  # Phase 5b: clear JOIN configurations
     ss.nl_history_mt = []
     ss.pop("_raw_sql_lock", None)
 
