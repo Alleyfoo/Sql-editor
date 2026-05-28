@@ -670,6 +670,19 @@ button, input, select, textarea {
 .type-text { background: var(--good-soft); color: var(--good); }
 .type-date { background: var(--accent-soft); color: var(--accent-ink); }
 
+/* Joinable column indicator */
+.joinable-chip {
+  display: inline-block;
+  font-size: 11px;
+  margin-left: 4px;
+  cursor: help;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.joinable-chip:hover {
+  opacity: 1;
+}
+
 /* Col-stats row — always 2 stat spans + micro-bar */
 .col-stats {
   display: grid;

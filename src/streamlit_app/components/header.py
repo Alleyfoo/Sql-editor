@@ -188,12 +188,17 @@ def _handle_supply_chain_load() -> None:
         except Exception:
             pass
 
+    # Detect relationships between tables
+    from src.relationships import detect_relationships
+    relationships = detect_relationships(tables_schema)
+
     # Flatten tables_schema for widgets that expect a single schema dict
     flat_schema = {col: dtype for s in tables_schema.values() for col, dtype in s.items()}
 
     ss.conn = conn
     ss.schema = flat_schema
     ss.tables = tables_schema          # full per-table schema for sidebar + JOIN composer
+    ss.relationships = relationships   # detected FK relationships
     ss.dataset_name = SUPPLY_CHAIN_NAME
     ss.dataset_meta = meta
     ss.dataset_df = None               # no single dataframe for multi-table

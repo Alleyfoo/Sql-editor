@@ -110,8 +110,12 @@ def render() -> None:
         _render_dataset_card(dataset_name, meta, schema)
         st.divider()
         tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
+        relationships: list = st.session_state.get("relationships", [])
         if tables:
-            _render_multi_table_schema(tables)
+            _render_multi_table_schema(tables, relationships)
+            if relationships:
+                st.divider()
+                _render_relationships(relationships)
             st.divider()
         elif schema:
             _render_schema_profile(schema)
@@ -162,12 +166,18 @@ def _render_dataset_card(name, meta, schema) -> None:
     )
 
 
-def _render_multi_table_schema(tables: Dict[str, Dict[str, str]]) -> None:
+def _render_multi_table_schema(tables: Dict[str, Dict[str, str]], relationships: list) -> None:
     """Render schema sections for each table in a multi-table dataset."""
+    from src.relationships import get_joinable_columns
+
     st.markdown(
         '<div class="schema-section-head"><span>Schema</span></div>',
         unsafe_allow_html=True,
     )
+
+    # Build a map of joinable columns
+    joinable = get_joinable_columns(relationships) if relationships else {}
+
     type_chip_class = {"numeric": "type-num", "text": "type-text", "date": "type-date"}
     for table_name, schema in tables.items():
         st.markdown(
@@ -176,17 +186,72 @@ def _render_multi_table_schema(tables: Dict[str, Dict[str, str]]) -> None:
             f'{table_name}</div>',
             unsafe_allow_html=True,
         )
+        table_joinable = joinable.get(table_name, set())
         for col, dtype in schema.items():
             chip_cls = type_chip_class.get(dtype, "type-text")
             chip_label = {"numeric": "num", "text": "text", "date": "date"}.get(dtype, dtype)
+
+            # Add joinable indicator if this column is part of a relationship
+            joinable_indicator = ""
+            if col in table_joinable:
+                joinable_indicator = (
+                    '<span class="joinable-chip" title="Joinable column">🔗</span>'
+                )
+
             st.markdown(
                 f'<div class="col-row" style="padding:3px 0;">'
                 f'<div class="col-row-head">'
                 f'<span class="col-name" style="font-size:12px;">{col}</span>'
                 f'<span class="type-chip {chip_cls}">{chip_label}</span>'
+                f'{joinable_indicator}'
                 f'</div></div>',
                 unsafe_allow_html=True,
             )
+
+
+def _render_relationships(relationships: list) -> None:
+    """Render detected relationships between tables."""
+    from src.relationships import format_relationship_label
+
+    st.markdown(
+        '<div class="schema-section-head"><span>Relationships</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    if not relationships:
+        st.markdown(
+            '<div style="font-size:12px;color:#B8B0A2;">No relationships detected.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    st.markdown(
+        f'<div style="font-size:11px;color:#8E867B;margin-bottom:8px;">'
+        f'{len(relationships)} potential join{"s" if len(relationships) != 1 else ""} detected</div>',
+        unsafe_allow_html=True,
+    )
+
+    for rel in relationships:
+        label = format_relationship_label(rel)
+        confidence = rel.get("confidence", "medium")
+
+        # Color based on confidence
+        if confidence == "high":
+            bg_color = "#E1F0E2"
+            border_color = "#C8DDC9"
+            text_color = "#3F6B45"
+        else:
+            bg_color = "#FAE7D0"
+            border_color = "#E9C79A"
+            text_color = "#8A4A11"
+
+        st.markdown(
+            f'<div style="padding:8px 10px;margin:4px 0;background:{bg_color};'
+            f'border:1px solid {border_color};border-radius:4px;'
+            f'font-family:\'IBM Plex Mono\',monospace;font-size:11px;'
+            f'color:{text_color};">{label}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _render_schema_profile(schema: Dict[str, str]) -> None:

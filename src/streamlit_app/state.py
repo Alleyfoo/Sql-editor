@@ -13,6 +13,7 @@ def init() -> None:
     ss.setdefault("conn", None)
     ss.setdefault("schema", {})
     ss.setdefault("tables", {})   # {table_name: schema} for multi-table datasets
+    ss.setdefault("relationships", [])  # detected FK relationships for multi-table
     ss.setdefault("dataset_name", None)
     ss.setdefault("dataset_meta", {})
     ss.setdefault("model", QueryModel(table=TABLE_NAME))

@@ -1,0 +1,1757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Visual Query Builder — Streamlit redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@1,500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #F4F1EA;
+    --paper: #FBFAF6;
+    --card: #FFFFFF;
+    --line: #E4DFD2;
+    --line-2: #EFEBE0;
+    --ink: #1A1714;
+    --ink-2: #57514A;
+    --ink-3: #8E867B;
+    --ink-4: #B8B0A2;
+    --accent: #C2410C;        /* warm rust */
+    --accent-soft: #FBE9DD;
+    --accent-ink: #7A2607;
+    --good: #15803D;
+    --good-soft: #DCEFE1;
+    --warn: #B45309;
+    --warn-soft: #FCE9CC;
+    --bad: #B91C1C;
+    --bad-soft: #F8DCDC;
+    --info: #1D4ED8;
+    --info-soft: #DDE5F7;
+    --code-bg: #1A1714;
+    --code-ink: #E8E2D3;
+    --code-key: #E0A85A;
+    --code-str: #B5C77A;
+    --code-num: #E08C5A;
+    --code-fn:  #84B0D9;
+    --code-mute: #6E665A;
+    --r-1: 4px;
+    --r-2: 6px;
+    --r-3: 10px;
+    --r-4: 14px;
+    --shadow-1: 0 1px 0 rgba(20, 15, 8, 0.04);
+    --shadow-2: 0 1px 2px rgba(20, 15, 8, 0.05), 0 4px 16px -8px rgba(20, 15, 8, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11";
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* Page shell ============================================================= */
+  .app {
+    width: 1440px;
+    margin: 0 auto;
+    min-height: 1900px;
+    background: var(--bg);
+  }
+
+  /* Top bar =============================================================== */
+  .topbar {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .brand-mark {
+    width: 22px; height: 22px;
+    background: var(--ink);
+    border-radius: 5px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    color: var(--paper);
+  }
+  .brand-mark::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border: 1.5px solid var(--paper);
+    border-radius: 1px;
+    border-left: none;
+    border-bottom: none;
+  }
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    width: 4px; height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    right: 4px; bottom: 4px;
+  }
+  .brand-name { font-size: 13px; }
+  .brand-name .dim { color: var(--ink-3); font-weight: 400; margin-left: 4px;}
+
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-2);
+    font-size: 12.5px;
+    padding-left: 12px;
+    border-left: 1px solid var(--line);
+    margin-left: 4px;
+  }
+  .crumbs .sep { color: var(--ink-4); }
+  .crumbs .active { color: var(--ink); font-weight: 500; }
+  .crumbs .chip-csv {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  .topbar-spacer { flex: 1; }
+
+  .icon-btn {
+    height: 30px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--r-2);
+    color: var(--ink-2);
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .icon-btn:hover { background: rgba(0,0,0,0.03); }
+  .icon-btn .kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 3px;
+    color: var(--ink-3);
+  }
+
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #C2410C 0%, #6B2310 100%);
+    color: white;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Body grid ============================================================ */
+  .body {
+    display: grid;
+    grid-template-columns: 304px 1fr;
+    min-height: calc(100% - 52px);
+  }
+
+  /* Sidebar ============================================================== */
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: var(--paper);
+    padding: 18px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .sidebar h4 {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+    margin: 0;
+    font-weight: 600;
+  }
+
+  /* Dataset card */
+  .ds-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    padding: 12px 12px 10px;
+  }
+  .ds-name {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; font-size: 13px;
+  }
+  .ds-name .file-ico {
+    width: 18px; height: 22px;
+    border: 1.5px solid var(--ink-2);
+    border-radius: 2px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .ds-name .file-ico::before {
+    content: "";
+    position: absolute;
+    top: -1.5px; right: -1.5px;
+    width: 7px; height: 7px;
+    background: var(--paper);
+    border-left: 1.5px solid var(--ink-2);
+    border-bottom: 1.5px solid var(--ink-2);
+  }
+  .ds-name .file-ico::after {
+    content: "CSV";
+    position: absolute;
+    bottom: 1px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 6px;
+    font-weight: 700;
+    color: var(--ink-2);
+    letter-spacing: 0.02em;
+  }
+  .ds-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin-top: 10px;
+    font-size: 11.5px;
+  }
+  .ds-meta .kv .k { color: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .ds-meta .kv .v { color: var(--ink); font-weight: 500; }
+  .ds-meta .kv .v .mono { font-size: 12px; }
+  .ds-card .badge-row { display:flex; gap:6px; margin-top: 10px; flex-wrap: wrap; }
+  .ds-card .badge {
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--good-soft);
+    color: var(--good);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ds-card .badge.read-only { background: #EDE5D3; color: #6B5318; }
+  .ds-card .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* Schema list */
+  .schema-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .schema-head a {
+    font-size: 11px; color: var(--ink-3); text-decoration: none;
+    border-bottom: 1px dotted var(--ink-4);
+  }
+  .schema-list {
+    display: flex; flex-direction: column;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    overflow: hidden;
+  }
+  .col-row {
+    padding: 9px 10px 9px 12px;
+    border-bottom: 1px solid var(--line-2);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+    cursor: pointer;
+    position: relative;
+  }
+  .col-row:last-child { border-bottom: none; }
+  .col-row:hover { background: #FBF8EF; }
+  .col-row.selected { background: #FBF1E6; }
+  .col-row.selected::before {
+    content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px;
+    background: var(--accent); border-radius: 0 2px 2px 0;
+  }
+  .col-row .name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .col-row .check {
+    width: 12px; height: 12px;
+    border: 1.4px solid var(--ink-4);
+    border-radius: 2px;
+    display: inline-block;
+    flex-shrink: 0;
+    background: white;
+  }
+  .col-row.selected .check {
+    background: var(--accent);
+    border-color: var(--accent);
+    position: relative;
+  }
+  .col-row.selected .check::after {
+    content: "";
+    position: absolute;
+    left: 3px; top: 0.5px;
+    width: 3px; height: 6.5px;
+    border: solid white;
+    border-width: 0 1.4px 1.4px 0;
+    transform: rotate(45deg);
+  }
+  .type-chip {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    align-self: start;
+    margin-top: 1px;
+  }
+  .type-text { background: #EFE7D0; color: #6B5318; }
+  .type-num  { background: #DDE8E0; color: #2E5C3C; }
+  .type-date { background: #DDE2EF; color: #2F3F70; }
+  .type-bool { background: #EBDEED; color: #5A2E63; }
+
+  .col-stats {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    gap: 0 10px;
+    margin-top: 4px;
+    font-size: 10.5px;
+    color: var(--ink-3);
+    align-items: center;
+  }
+  .col-stats .stat { display: inline-flex; align-items: center; gap: 4px; }
+  .col-stats .stat strong { font-family: "IBM Plex Mono", monospace; color: var(--ink-2); font-weight: 500; }
+  .micro-bar {
+    height: 4px;
+    background: var(--line-2);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+    margin-left: auto;
+    width: 60px;
+  }
+  .micro-bar > i {
+    display: block;
+    height: 100%;
+    background: var(--good);
+    border-radius: 2px;
+  }
+  .sparkline {
+    grid-column: 1 / -1;
+    height: 18px;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    margin-top: 3px;
+  }
+  .sparkline i {
+    flex: 1;
+    background: var(--ink-4);
+    border-radius: 1px 1px 0 0;
+    opacity: 0.55;
+  }
+  .sparkline i.hi { background: var(--accent); opacity: 0.85; }
+  .sample-row {
+    grid-column: 1 / -1;
+    display: flex; gap: 4px; margin-top: 3px;
+    overflow: hidden;
+  }
+  .sample-row .v {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    color: var(--ink-3);
+    background: var(--line-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+  }
+
+  /* History list */
+  .hist-list { display: flex; flex-direction: column; gap: 2px; }
+  .hist-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 8px;
+    border-radius: var(--r-2);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .hist-row:hover { background: var(--line-2); }
+  .hist-row .when { font-family: "IBM Plex Mono", monospace; color: var(--ink-3); font-size: 10.5px; min-width: 36px; }
+  .hist-row .q { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hist-row .rows { font-family: "IBM Plex Mono", monospace; color: var(--ink-3); font-size: 10.5px; }
+
+  /* Main ================================================================= */
+  .main {
+    padding: 22px 28px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* Hero ask bar */
+  .ask {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    padding: 18px 20px 16px;
+    box-shadow: var(--shadow-2);
+  }
+  .ask-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ask-label .pulse {
+    width: 6px; height: 6px; background: var(--good); border-radius: 50%;
+    box-shadow: 0 0 0 3px var(--good-soft);
+  }
+  .ask-label .model {
+    margin-left: auto; text-transform: none; letter-spacing: 0; color: var(--ink-3);
+    font-weight: 400; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  }
+  .ask-input-wrap {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .ask-input {
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    padding: 0 14px;
+    font-family: "IBM Plex Serif", "IBM Plex Sans", serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink);
+    background: #FDFCF8;
+    display: flex; align-items: center;
+  }
+  .ask-input.placeholder { color: var(--ink-3); }
+  .ask-input .caret {
+    width: 1.5px; height: 18px;
+    background: var(--ink);
+    animation: blink 1s steps(2) infinite;
+    margin-left: 2px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .btn {
+    height: 44px;
+    padding: 0 18px;
+    border-radius: var(--r-2);
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn.secondary {
+    background: var(--card);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn.accent {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .btn .spark {
+    width: 14px; height: 14px;
+    display: inline-block;
+    position: relative;
+  }
+  .btn .spark::before, .btn .spark::after {
+    content: ""; position: absolute;
+    background: currentColor;
+  }
+  .btn .spark::before {
+    left: 6px; top: 0; width: 2px; height: 14px;
+    clip-path: polygon(0 30%, 100% 30%, 50% 0, 100% 70%, 0 70%, 50% 100%);
+  }
+  .btn .spark::after {
+    left: 0; top: 6px; width: 14px; height: 2px;
+    clip-path: polygon(30% 0, 30% 100%, 0 50%, 70% 100%, 70% 0, 100% 50%);
+  }
+
+  .ask-chips {
+    display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .ask-chip {
+    font-size: 11.5px;
+    color: var(--ink-2);
+    background: var(--line-2);
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .ask-chip:hover { border-color: var(--line); }
+  .ask-chip .ico { color: var(--ink-3); margin-right: 4px; }
+
+  /* Assistant transcript */
+  .assistant {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    overflow: hidden;
+  }
+  .assistant-head {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: center; gap: 10px;
+    background: #FBF9F3;
+  }
+  .assistant-head .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+    font-weight: 600;
+  }
+  .assistant-head .count {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    color: var(--ink-3);
+    background: var(--line-2);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .assistant-head .actions { margin-left: auto; display: flex; gap: 4px; }
+
+  .msg {
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .msg:last-child { border-bottom: none; }
+  .msg .av {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .msg.user .av { background: #2C2A26; color: var(--paper); }
+  .msg.bot .av  {
+    background: var(--accent-soft); color: var(--accent-ink);
+    position: relative;
+  }
+  .msg.bot .av::after {
+    content: "✦"; font-size: 11px;
+  }
+  .msg .body { font-size: 13px; color: var(--ink); line-height: 1.55; }
+  .msg .body .question { font-weight: 500; }
+  .msg .body .meta {
+    color: var(--ink-3); font-size: 11px; margin-top: 2px;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  .insights {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .insight {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--r-2);
+    padding: 10px 12px;
+  }
+  .insight .h {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-3); margin-bottom: 4px;
+  }
+  .insight .v {
+    font-family: "IBM Plex Serif", serif;
+    font-style: italic;
+    font-size: 15.5px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .insight .delta {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--good);
+    margin-top: 2px;
+  }
+  .insight .delta.down { color: var(--bad); }
+
+  .followups {
+    display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .followup {
+    background: white;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .followup:hover { border-style: solid; color: var(--ink); }
+  .followup::before { content: "→  "; color: var(--accent); }
+
+  /* Composer + SQL ======================================================= */
+  .work {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 18px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .panel-head {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: center; gap: 10px;
+    background: #FBF9F3;
+  }
+  .panel-head .title {
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .panel-head .sub {
+    font-size: 11.5px; color: var(--ink-3);
+  }
+  .panel-head .actions { margin-left: auto; display: flex; gap: 6px; }
+  .panel-head .pill {
+    font-size: 10.5px;
+    padding: 1px 7px;
+    border-radius: 3px;
+    background: var(--line-2);
+    color: var(--ink-2);
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+  }
+
+  /* Composer sections (stacked) */
+  .composer-section {
+    border-bottom: 1px solid var(--line-2);
+  }
+  .composer-section:last-child { border-bottom: none; }
+  .cs-head {
+    padding: 9px 16px 9px 14px;
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer;
+  }
+  .cs-head .num {
+    width: 17px; height: 17px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    display: grid; place-items: center;
+    font-weight: 600;
+  }
+  .cs-head .num.active {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+  .cs-head .h {
+    font-size: 13px; font-weight: 600; color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .cs-head .summary {
+    margin-left: 8px;
+    color: var(--ink-3);
+    font-size: 12px;
+    font-family: "IBM Plex Mono", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cs-head .count-pill {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 10.5px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-family: "IBM Plex Mono", monospace;
+  }
+  .cs-head .chev {
+    margin-left: auto;
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+  .cs-body {
+    padding: 4px 14px 14px;
+  }
+
+  /* SELECT pills */
+  .select-pills {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 4px 14px 14px;
+  }
+  .select-pill {
+    height: 26px;
+    padding: 0 10px 0 8px;
+    border-radius: 999px;
+    background: #F8EFE2;
+    border: 1px solid #ECDFCD;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--accent-ink);
+    font-weight: 500;
+  }
+  .select-pill .x {
+    width: 14px; height: 14px;
+    color: var(--ink-3);
+    display: grid; place-items: center;
+    cursor: pointer;
+    font-size: 11px;
+    border-radius: 50%;
+  }
+  .select-pill .x:hover { background: rgba(0,0,0,0.06); color: var(--ink); }
+  .select-pill.add {
+    background: white;
+    border: 1px dashed var(--line);
+    color: var(--ink-3);
+  }
+  .select-pill .grip {
+    color: var(--ink-4);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    cursor: grab;
+  }
+
+  /* Filter rows */
+  .filter-row {
+    display: grid;
+    grid-template-columns: 54px 1.2fr 0.9fr 1.4fr 22px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .filter-row.first { grid-template-columns: 54px 1.2fr 0.9fr 1.4fr 22px; }
+  .filter-row.first .conj { visibility: hidden; }
+  .input,
+  .select {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-1);
+    background: white;
+    color: var(--ink);
+    font-size: 12px;
+    font-family: inherit;
+    display: flex; align-items: center;
+    width: 100%;
+  }
+  .select {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+                      linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+    background-position: calc(100% - 12px) center, calc(100% - 8px) center;
+    background-size: 4px 4px, 4px 4px;
+    background-repeat: no-repeat;
+    padding-right: 22px;
+    cursor: pointer;
+  }
+  .input.mono, .select.mono { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; }
+  .conj {
+    background: #EFE7D0;
+    color: #6B5318;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    border-radius: var(--r-1);
+    border: 1px solid #E1D5B7;
+    display: grid; place-items: center;
+  }
+  .conj.or { background: #DDE2EF; color: #2F3F70; border-color: #C8D0E4; }
+  .x-btn {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    color: var(--ink-3);
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .x-btn:hover { background: var(--line-2); color: var(--bad); }
+  .between {
+    display: grid;
+    grid-template-columns: 1fr 16px 1fr;
+    gap: 4px;
+    align-items: center;
+  }
+  .between .sep { text-align: center; color: var(--ink-3); font-size: 11px; }
+
+  .add-row {
+    margin-top: 6px;
+    height: 28px;
+    border: 1px dashed var(--line);
+    background: transparent;
+    border-radius: var(--r-1);
+    color: var(--ink-2);
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+  }
+  .add-row .plus { color: var(--accent); font-weight: 700; }
+  .add-row:hover { border-color: var(--ink-3); color: var(--ink); }
+
+  /* Group + Agg */
+  .group-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .group-chip {
+    background: var(--info-soft);
+    color: var(--info);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid #C8D0E4;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .group-chip .x {
+    color: var(--info); opacity: 0.6;
+    cursor: pointer;
+  }
+
+  .agg-row {
+    display: grid;
+    grid-template-columns: 28px 0.7fr 1fr 1fr 22px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .agg-fn {
+    background: var(--good-soft);
+    color: var(--good);
+    border: 1px solid #BAD9C0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    border-radius: var(--r-1);
+    height: 30px;
+    display: grid; place-items: center;
+  }
+  .agg-row .arrow {
+    text-align: center;
+    color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+  }
+
+  /* Sort */
+  .sort-row {
+    display: grid;
+    grid-template-columns: 1fr auto 22px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: var(--r-1);
+    overflow: hidden;
+    height: 30px;
+  }
+  .seg button {
+    background: white;
+    border: none;
+    padding: 0 10px;
+    font-size: 11px;
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--ink-2);
+    cursor: pointer;
+    border-right: 1px solid var(--line);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.on {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .limit-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line-2);
+  }
+  .limit-row label { font-size: 12px; color: var(--ink-2); }
+  .limit-row .input { width: 90px; }
+  .limit-row .hint {
+    color: var(--ink-3); font-size: 11.5px;
+  }
+
+  /* SQL preview */
+  .sql-wrap {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-height: 360px;
+  }
+  .sql-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 11.5px;
+    color: var(--code-mute);
+    font-family: "IBM Plex Mono", monospace;
+  }
+  .sql-toolbar .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--good);
+    box-shadow: 0 0 0 2px rgba(21,128,61,0.2);
+  }
+  .sql-toolbar .stat { display:inline-flex; gap: 4px; align-items: center; }
+  .sql-toolbar .stat strong { color: var(--code-ink); font-weight: 500; }
+  .sql-toolbar .sep { color: rgba(255,255,255,0.15); }
+  .sql-toolbar .actions { margin-left: auto; display: flex; gap: 4px; }
+  .sql-toolbar .ghost-btn {
+    background: transparent; border: 1px solid rgba(255,255,255,0.1);
+    color: var(--code-ink); padding: 2px 8px;
+    border-radius: 3px; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; cursor: pointer;
+  }
+  .sql-toolbar .ghost-btn:hover { background: rgba(255,255,255,0.04); }
+  .sql-code {
+    flex: 1;
+    padding: 12px 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    overflow: auto;
+  }
+  .sql-line {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    padding: 0 14px 0 0;
+  }
+  .sql-line .ln {
+    text-align: right; padding-right: 12px;
+    color: rgba(232,226,211,0.25);
+    user-select: none;
+  }
+  .sql-line .src { white-space: pre; }
+  .sql-line.active { background: rgba(255,255,255,0.04); }
+  .sql-line.active .ln { color: rgba(232,226,211,0.55); }
+  .kw { color: var(--code-key); font-weight: 600; }
+  .fn { color: var(--code-fn); }
+  .str { color: var(--code-str); }
+  .num { color: var(--code-num); }
+  .cmt { color: var(--code-mute); font-style: italic; }
+  .id  { color: var(--code-ink); }
+  .pn  { color: rgba(232,226,211,0.55); }
+
+  /* Run bar */
+  .runbar {
+    background: #131110;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .runbar .run-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--r-2);
+    height: 34px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 2px 6px rgba(194,65,12,0.4);
+  }
+  .runbar .run-btn .tri {
+    width: 0; height: 0;
+    border-left: 8px solid white;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+  .runbar .ghost {
+    background: transparent;
+    color: var(--code-ink);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--r-2);
+    height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .runbar .kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    color: rgba(232,226,211,0.5);
+    margin-left: auto;
+  }
+  .runbar .kbd span {
+    background: rgba(255,255,255,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: rgba(232,226,211,0.7);
+  }
+  .runbar .safety {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--good); font-size: 11px;
+    font-family: "IBM Plex Mono", monospace;
+  }
+  .runbar .safety .lock {
+    width: 9px; height: 8px;
+    border: 1.4px solid var(--good);
+    border-radius: 1px;
+    position: relative;
+  }
+  .runbar .safety .lock::before {
+    content: "";
+    position: absolute;
+    width: 5px; height: 4px;
+    border: 1.4px solid var(--good);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    top: -5px; left: 1px;
+  }
+
+  /* Results panel ======================================================== */
+  .results {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-3);
+    overflow: hidden;
+  }
+  .results-head {
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line-2);
+    display: flex; align-items: center; gap: 14px;
+    background: #FBF9F3;
+  }
+  .tabs {
+    display: flex; gap: 2px;
+    background: var(--paper);
+    padding: 3px;
+    border-radius: var(--r-1);
+    border: 1px solid var(--line);
+  }
+  .tabs .tab {
+    height: 24px; padding: 0 12px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tabs .tab.on { background: white; color: var(--ink); box-shadow: var(--shadow-1); font-weight: 500; }
+  .tabs .tab .ic {
+    width: 12px; height: 12px;
+    display: inline-block;
+    border: 1.4px solid currentColor;
+    border-radius: 1.5px;
+  }
+  .results-stats {
+    display: flex; align-items: center; gap: 14px;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .results-stats .s strong {
+    color: var(--ink); font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    font-weight: 500;
+  }
+  .export-btn {
+    height: 28px;
+    padding: 0 12px;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--r-1);
+    color: var(--ink);
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+
+  /* Data table */
+  .dt-wrap { overflow-x: auto; }
+  table.dt {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  table.dt th, table.dt td {
+    text-align: left;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line-2);
+    white-space: nowrap;
+  }
+  table.dt thead th {
+    background: var(--paper);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0;
+    padding: 6px 14px;
+  }
+  table.dt thead th .col {
+    display: flex; align-items: center; gap: 8px;
+  }
+  table.dt thead th .nm {
+    font-family: "IBM Plex Sans", sans-serif;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  table.dt thead th .nm.right { text-align: right; }
+  table.dt thead th .nm.agg::before {
+    content: "Σ ";
+    color: var(--good);
+    font-family: "IBM Plex Mono", monospace;
+  }
+  table.dt thead th .profile {
+    margin-top: 4px;
+    height: 18px;
+    display: flex; align-items: flex-end; gap: 1px;
+  }
+  table.dt thead th .profile i {
+    flex: 1;
+    background: var(--ink-4);
+    opacity: 0.5;
+    border-radius: 1px 1px 0 0;
+  }
+  table.dt thead th .profile i.hi { background: var(--accent); opacity: 0.85; }
+  table.dt thead th .nulls {
+    margin-top: 2px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    color: var(--ink-3);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  table.dt thead th .nulls.zero { color: var(--good); }
+
+  table.dt tbody td.num { font-family: "IBM Plex Mono", monospace; text-align: right; font-feature-settings: "tnum"; }
+  table.dt tbody td.date { font-family: "IBM Plex Mono", monospace; color: var(--ink-2); }
+  table.dt tbody td.null { color: var(--ink-4); font-style: italic; font-family: "IBM Plex Mono", monospace; }
+  table.dt tbody tr:hover { background: #FCFAF3; }
+  table.dt tbody td.bar { position: relative; padding-right: 22px; }
+  table.dt tbody td .bar-fill {
+    position: absolute;
+    right: 14px; bottom: 4px;
+    height: 3px;
+    background: var(--accent);
+    opacity: 0.45;
+    border-radius: 2px;
+  }
+
+  .results-foot {
+    padding: 8px 16px;
+    display: flex; align-items: center; gap: 14px;
+    border-top: 1px solid var(--line-2);
+    background: var(--paper);
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .results-foot .page {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .results-foot .pbtn {
+    width: 22px; height: 22px;
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 3px;
+    color: var(--ink-2);
+    font-size: 11px;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+
+  /* Footer / status ====================================================== */
+  .statusbar {
+    border-top: 1px solid var(--line);
+    background: var(--paper);
+    padding: 6px 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace;
+  }
+  .statusbar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); margin-right: 4px; }
+  .statusbar .right { margin-left: auto; display: flex; gap: 14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Top bar ============================================================ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-name">Query Studio<span class="dim">/ Mixed Execution</span></div>
+    </div>
+    <div class="crumbs">
+      <span>Workspaces</span>
+      <span class="sep">›</span>
+      <span>Open Data</span>
+      <span class="sep">›</span>
+      <span class="chip-csv">test_sales.csv</span>
+      <span class="active">Untitled query</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn"><span>＋ Open CSV</span></button>
+    <button class="icon-btn"><span>History</span><span class="kbd">⌘H</span></button>
+    <button class="icon-btn"><span>Share</span></button>
+    <div class="avatar">MK</div>
+  </header>
+
+  <div class="body">
+
+    <!-- Sidebar ========================================================== -->
+    <aside class="sidebar">
+
+      <!-- Dataset card -->
+      <section>
+        <h4 style="margin-bottom: 8px;">Active Dataset</h4>
+        <div class="ds-card">
+          <div class="ds-name">
+            <div class="file-ico"></div>
+            <div>test_sales.csv</div>
+          </div>
+          <div class="ds-meta">
+            <div class="kv">
+              <div class="k">Rows</div>
+              <div class="v"><span class="mono">16</span></div>
+            </div>
+            <div class="kv">
+              <div class="k">Columns</div>
+              <div class="v"><span class="mono">5</span></div>
+            </div>
+            <div class="kv">
+              <div class="k">Size</div>
+              <div class="v"><span class="mono">1.2 KB</span></div>
+            </div>
+            <div class="kv">
+              <div class="k">Loaded</div>
+              <div class="v"><span class="mono">2m ago</span></div>
+            </div>
+          </div>
+          <div class="badge-row">
+            <span class="badge"><span class="dot"></span>Connected</span>
+            <span class="badge read-only">read-only</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Schema -->
+      <section>
+        <div class="schema-head">
+          <h4>Schema</h4>
+          <a href="#">Profile all ↗</a>
+        </div>
+        <div class="schema-list">
+
+          <div class="col-row selected">
+            <div class="name"><span class="check"></span>product</div>
+            <span class="type-chip type-text">text</span>
+            <div class="col-stats">
+              <span class="stat"><strong>12</strong> unique</span>
+              <span class="stat"><strong>0</strong> nulls</span>
+              <span class="micro-bar"><i style="width:100%"></i></span>
+            </div>
+            <div class="sample-row">
+              <span class="v">Widget A</span><span class="v">Gadget X</span><span class="v">Monitor</span>
+            </div>
+          </div>
+
+          <div class="col-row selected">
+            <div class="name"><span class="check"></span>category</div>
+            <span class="type-chip type-text">text</span>
+            <div class="col-stats">
+              <span class="stat"><strong>3</strong> unique</span>
+              <span class="stat"><strong>0</strong> nulls</span>
+              <span class="micro-bar"><i style="width:100%"></i></span>
+            </div>
+            <div class="sample-row">
+              <span class="v">Electronics</span><span class="v">Stationery</span><span class="v">Furniture</span>
+            </div>
+          </div>
+
+          <div class="col-row selected">
+            <div class="name"><span class="check"></span>price</div>
+            <span class="type-chip type-num">num</span>
+            <div class="col-stats">
+              <span class="stat"><strong>2.99</strong> min</span>
+              <span class="stat"><strong>299.99</strong> max</span>
+              <span class="micro-bar"><i style="width:100%; background:#1D4ED8"></i></span>
+            </div>
+            <div class="sparkline">
+              <i style="height:35%"></i><i style="height:55%"></i><i style="height:25%" class="hi"></i>
+              <i style="height:80%"></i><i style="height:45%"></i><i style="height:60%" class="hi"></i>
+              <i style="height:30%"></i><i style="height:70%"></i><i style="height:50%"></i>
+              <i style="height:90%"></i><i style="height:40%" class="hi"></i><i style="height:65%"></i>
+            </div>
+          </div>
+
+          <div class="col-row">
+            <div class="name"><span class="check"></span>quantity</div>
+            <span class="type-chip type-num">num</span>
+            <div class="col-stats">
+              <span class="stat"><strong>15</strong> min</span>
+              <span class="stat"><strong>700</strong> max</span>
+              <span class="micro-bar"><i style="width:100%; background:#1D4ED8"></i></span>
+            </div>
+          </div>
+
+          <div class="col-row">
+            <div class="name"><span class="check"></span>sale_date</div>
+            <span class="type-chip type-date">date</span>
+            <div class="col-stats">
+              <span class="stat"><strong>Jan&nbsp;05</strong> min</span>
+              <span class="stat"><strong>Apr&nbsp;02</strong> max</span>
+              <span class="micro-bar"><i style="width:80%; background:#2F3F70"></i></span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Query history -->
+      <section>
+        <div class="schema-head">
+          <h4>Recent runs</h4>
+          <a href="#">All ↗</a>
+        </div>
+        <div class="hist-list">
+          <div class="hist-row">
+            <span class="when">2m</span>
+            <span class="q">total revenue by category</span>
+            <span class="rows">3↩</span>
+          </div>
+          <div class="hist-row">
+            <span class="when">8m</span>
+            <span class="q">top 5 products by quantity</span>
+            <span class="rows">5↩</span>
+          </div>
+          <div class="hist-row">
+            <span class="when">14m</span>
+            <span class="q">electronics over $100</span>
+            <span class="rows">3↩</span>
+          </div>
+          <div class="hist-row">
+            <span class="when">31m</span>
+            <span class="q">monthly sales trend</span>
+            <span class="rows">4↩</span>
+          </div>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- Main ============================================================= -->
+    <main class="main">
+
+      <!-- Ask -->
+      <section class="ask">
+        <div class="ask-label">
+          <span class="pulse"></span>Ask your data
+          <span class="model">gemma3 · local · 3 turns of context</span>
+        </div>
+        <div class="ask-input-wrap">
+          <div class="ask-input">
+            Which product categories drove the most revenue in Q1?<span class="caret"></span>
+          </div>
+          <button class="btn secondary">Ask</button>
+          <button class="btn accent">
+            <span class="spark"></span>
+            Ask + Analyze
+          </button>
+        </div>
+        <div class="ask-chips">
+          <span class="ask-chip"><span class="ico">↳</span>top 5 products by quantity</span>
+          <span class="ask-chip"><span class="ico">↳</span>average price per category</span>
+          <span class="ask-chip"><span class="ico">↳</span>compare Electronics vs Stationery</span>
+          <span class="ask-chip"><span class="ico">↳</span>months with revenue above 10k</span>
+        </div>
+      </section>
+
+      <!-- Assistant transcript -->
+      <section class="assistant">
+        <div class="assistant-head">
+          <span class="label">Assistant</span>
+          <span class="count">3 messages</span>
+          <div class="actions">
+            <button class="icon-btn">Clear</button>
+            <button class="icon-btn">Pin ↗</button>
+          </div>
+        </div>
+
+        <div class="msg user">
+          <div class="av">MK</div>
+          <div class="body">
+            <div class="question">total revenue by category, highest first</div>
+            <div class="meta">2 min ago · 1 reference: test_sales.csv</div>
+          </div>
+        </div>
+
+        <div class="msg bot">
+          <div class="av"></div>
+          <div class="body">
+            <div>
+              Grouped <span class="mono">test_sales.csv</span> by <span class="mono">category</span>, summed <span class="mono">price * quantity</span> as <code>revenue</code>, sorted descending. <strong>Electronics leads by ~3.4×.</strong>
+            </div>
+            <div class="insights">
+              <div class="insight">
+                <div class="h">Top category</div>
+                <div class="v">Electronics</div>
+                <div class="delta">$24,488 · 64% of total</div>
+              </div>
+              <div class="insight">
+                <div class="h">Lowest</div>
+                <div class="v">Stationery</div>
+                <div class="delta down">$7,251 · -3.4× vs top</div>
+              </div>
+              <div class="insight">
+                <div class="h">Concentration</div>
+                <div class="v">High</div>
+                <div class="delta">HHI 0.46 (skewed)</div>
+              </div>
+            </div>
+            <div class="followups">
+              <span class="followup">Break Electronics down by product</span>
+              <span class="followup">Same view month-over-month</span>
+              <span class="followup">Filter to Q1 only</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Composer + SQL ============================================== -->
+      <section class="work">
+
+        <!-- Composer -->
+        <div class="panel">
+          <div class="panel-head">
+            <span class="title">Compose</span>
+            <span class="sub">visual builder · synced with SQL ↔</span>
+            <div class="actions">
+              <button class="icon-btn">Reset</button>
+              <button class="icon-btn">Save as recipe ↗</button>
+            </div>
+          </div>
+
+          <!-- SELECT -->
+          <div class="composer-section">
+            <div class="cs-head">
+              <span class="num active">1</span>
+              <span class="h">SELECT</span>
+              <span class="summary">category, SUM(price*quantity) AS revenue</span>
+            </div>
+            <div class="select-pills">
+              <span class="select-pill">
+                <span class="grip">⋮⋮</span>category<span class="x">×</span>
+              </span>
+              <span class="select-pill">
+                <span class="grip">⋮⋮</span>
+                <span class="mono" style="font-size:11px; color:#2E5C3C; background:#DDE8E0; padding:1px 4px; border-radius:2px;">SUM</span>
+                price × quantity → revenue
+                <span class="x">×</span>
+              </span>
+              <span class="select-pill add">＋ Add column</span>
+            </div>
+          </div>
+
+          <!-- WHERE -->
+          <div class="composer-section">
+            <div class="cs-head">
+              <span class="num active">2</span>
+              <span class="h">WHERE</span>
+              <span class="count-pill">2</span>
+              <span class="summary">sale_date ≥ 2024-01-01 AND category != 'Furniture'</span>
+            </div>
+            <div class="cs-body">
+              <div class="filter-row first">
+                <div class="conj">WHERE</div>
+                <select class="select"><option>sale_date</option></select>
+                <select class="select mono"><option>&gt;=</option></select>
+                <input class="input mono" value="2024-01-01" />
+                <button class="x-btn">×</button>
+              </div>
+              <div class="filter-row">
+                <div class="conj">AND</div>
+                <select class="select"><option>category</option></select>
+                <select class="select mono"><option>!=</option></select>
+                <input class="input" value="Furniture" />
+                <button class="x-btn">×</button>
+              </div>
+              <button class="add-row"><span class="plus">＋</span> Add condition</button>
+            </div>
+          </div>
+
+          <!-- GROUP BY / Aggregations -->
+          <div class="composer-section">
+            <div class="cs-head">
+              <span class="num active">3</span>
+              <span class="h">GROUP BY · Aggregate</span>
+              <span class="count-pill">1 + 1</span>
+              <span class="summary">category, SUM(price × quantity) AS revenue</span>
+            </div>
+            <div class="cs-body">
+              <div style="font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom:6px;">Group by</div>
+              <div class="group-chips">
+                <span class="group-chip">category <span class="x">×</span></span>
+                <span class="select-pill add" style="height:24px; font-size:11.5px;">＋ Add group</span>
+              </div>
+
+              <div style="font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom:6px; margin-top:12px;">Aggregations</div>
+              <div class="agg-row">
+                <div class="agg-fn">SUM</div>
+                <select class="select"><option>price × quantity</option></select>
+                <span class="arrow">→</span>
+                <input class="input mono" value="revenue" />
+                <button class="x-btn">×</button>
+              </div>
+              <div class="agg-row">
+                <div class="agg-fn">COUNT</div>
+                <select class="select"><option>*</option></select>
+                <span class="arrow">→</span>
+                <input class="input mono" value="orders" />
+                <button class="x-btn">×</button>
+              </div>
+              <button class="add-row"><span class="plus">＋</span> Add aggregation</button>
+            </div>
+          </div>
+
+          <!-- HAVING -->
+          <div class="composer-section">
+            <div class="cs-head">
+              <span class="num">4</span>
+              <span class="h">HAVING</span>
+              <span class="summary">revenue &gt; 5000</span>
+            </div>
+            <div class="cs-body">
+              <div class="filter-row first">
+                <div class="conj">HAVING</div>
+                <select class="select"><option>revenue</option></select>
+                <select class="select mono"><option>&gt;</option></select>
+                <input class="input mono" value="5000" />
+                <button class="x-btn">×</button>
+              </div>
+              <button class="add-row"><span class="plus">＋</span> Add condition</button>
+            </div>
+          </div>
+
+          <!-- ORDER + LIMIT -->
+          <div class="composer-section">
+            <div class="cs-head">
+              <span class="num active">5</span>
+              <span class="h">ORDER BY · LIMIT</span>
+              <span class="summary">revenue DESC, LIMIT 1000</span>
+            </div>
+            <div class="cs-body">
+              <div class="sort-row">
+                <select class="select"><option>revenue</option></select>
+                <div class="seg">
+                  <button class="on">DESC</button>
+                  <button>ASC</button>
+                </div>
+                <button class="x-btn">×</button>
+              </div>
+              <button class="add-row"><span class="plus">＋</span> Add sort</button>
+
+              <div class="limit-row">
+                <label>LIMIT</label>
+                <input class="input mono" value="1000" />
+                <span class="hint">0 = no limit</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SQL Preview -->
+        <div class="panel" style="background: var(--code-bg); border-color: #2a2520;">
+          <div class="sql-wrap">
+            <div class="sql-toolbar">
+              <span class="dot"></span>
+              <span class="stat">SELECT-only <strong>·</strong></span>
+              <span class="stat"><strong>~3</strong> rows est.</span>
+              <span class="sep">·</span>
+              <span class="stat"><strong>SQLite</strong> in-memory</span>
+              <span class="actions">
+                <button class="ghost-btn">Wrap</button>
+                <button class="ghost-btn">Format</button>
+                <button class="ghost-btn">Copy</button>
+              </span>
+            </div>
+            <div class="sql-code">
+<div class="sql-line"><span class="ln">1</span><span class="src"><span class="kw">SELECT</span></span></div>
+<div class="sql-line"><span class="ln">2</span><span class="src">  <span class="id">"category"</span><span class="pn">,</span></span></div>
+<div class="sql-line"><span class="ln">3</span><span class="src">  <span class="fn">SUM</span><span class="pn">(</span><span class="id">"price"</span> <span class="pn">*</span> <span class="id">"quantity"</span><span class="pn">)</span> <span class="kw">AS</span> <span class="id">"revenue"</span><span class="pn">,</span></span></div>
+<div class="sql-line"><span class="ln">4</span><span class="src">  <span class="fn">COUNT</span><span class="pn">(*)</span> <span class="kw">AS</span> <span class="id">"orders"</span></span></div>
+<div class="sql-line"><span class="ln">5</span><span class="src"><span class="kw">FROM</span> <span class="id">"sales"</span></span></div>
+<div class="sql-line active"><span class="ln">6</span><span class="src"><span class="kw">WHERE</span> <span class="id">"sale_date"</span> <span class="pn">&gt;=</span> <span class="str">'2024-01-01'</span></span></div>
+<div class="sql-line active"><span class="ln">7</span><span class="src">  <span class="kw">AND</span> <span class="id">"category"</span> <span class="pn">!=</span> <span class="str">'Furniture'</span></span></div>
+<div class="sql-line"><span class="ln">8</span><span class="src"><span class="kw">GROUP BY</span> <span class="id">"category"</span></span></div>
+<div class="sql-line"><span class="ln">9</span><span class="src"><span class="kw">HAVING</span> <span class="fn">SUM</span><span class="pn">(</span><span class="id">"price"</span> <span class="pn">*</span> <span class="id">"quantity"</span><span class="pn">)</span> <span class="pn">&gt;</span> <span class="num">5000</span></span></div>
+<div class="sql-line"><span class="ln">10</span><span class="src"><span class="kw">ORDER BY</span> <span class="id">"revenue"</span> <span class="kw">DESC</span></span></div>
+<div class="sql-line"><span class="ln">11</span><span class="src"><span class="kw">LIMIT</span> <span class="num">1000</span><span class="pn">;</span></span></div>
+<div class="sql-line"><span class="ln">12</span><span class="src">&nbsp;</span></div>
+<div class="sql-line"><span class="ln">13</span><span class="src"><span class="cmt">-- generated · 11 keywords · 0 blocked</span></span></div>
+            </div>
+            <div class="runbar">
+              <button class="run-btn"><span class="tri"></span> Run query</button>
+              <button class="ghost">Explain</button>
+              <span class="safety"><span class="lock"></span> SELECT-only · read-only conn</span>
+              <span class="kbd"><span>⌘</span> <span>↵</span> to run</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results ====================================================== -->
+      <section class="results">
+        <div class="results-head">
+          <div class="tabs">
+            <button class="tab on"><span class="ic"></span>Table</button>
+            <button class="tab">📊 Chart</button>
+            <button class="tab">∑ Summary</button>
+            <button class="tab">JSON</button>
+          </div>
+          <div class="results-stats">
+            <span class="s"><strong>2</strong> rows</span>
+            <span class="s"><strong>3</strong> cols</span>
+            <span class="s"><strong>14ms</strong> exec</span>
+            <span class="s"><strong>2.1KB</strong> scanned</span>
+          </div>
+          <button class="export-btn">Export CSV ↗</button>
+        </div>
+
+        <div class="dt-wrap">
+          <table class="dt">
+            <thead>
+              <tr>
+                <th>
+                  <div class="col">
+                    <span class="type-chip type-text">text</span>
+                    <span class="nm">category</span>
+                  </div>
+                  <div class="nulls zero">0% null · 2 unique</div>
+                </th>
+                <th>
+                  <div class="col" style="justify-content: flex-end;">
+                    <span class="nm agg right">revenue</span>
+                    <span class="type-chip type-num">num</span>
+                  </div>
+                  <div class="profile">
+                    <i class="hi" style="height:90%"></i>
+                    <i style="height:30%"></i>
+                  </div>
+                  <div class="nulls zero">min 7,250.50  ·  max 24,488.10</div>
+                </th>
+                <th>
+                  <div class="col" style="justify-content: flex-end;">
+                    <span class="nm agg right">orders</span>
+                    <span class="type-chip type-num">num</span>
+                  </div>
+                  <div class="profile">
+                    <i class="hi" style="height:80%"></i>
+                    <i style="height:35%"></i>
+                  </div>
+                  <div class="nulls zero">min 4  ·  max 6</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Electronics</td>
+                <td class="num bar">24,488.10<span class="bar-fill" style="width: 220px;"></span></td>
+                <td class="num bar">6<span class="bar-fill" style="width: 200px;"></span></td>
+              </tr>
+              <tr>
+                <td>Stationery</td>
+                <td class="num bar">7,250.50<span class="bar-fill" style="width: 65px;"></span></td>
+                <td class="num bar">4<span class="bar-fill" style="width: 130px;"></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="results-foot">
+          <span>Showing all 2 rows.</span>
+          <span style="margin-left: 8px;">Run finished <span class="mono" style="color: var(--ink-2);">2026-05-20 14:32:08</span></span>
+          <div class="page" style="margin-left: auto;">
+            <button class="pbtn">‹</button>
+            <span class="mono">1 / 1</span>
+            <button class="pbtn">›</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span><span class="dot"></span> Connected to in-memory SQLite</span>
+    <span>route: <strong style="color: var(--ink-2);">pushdown</strong></span>
+    <span>history: <strong style="color: var(--ink-2);">artifacts/query_history.jsonl</strong></span>
+    <div class="right">
+      <span>v0.4 · Phase 3</span>
+      <span>built with Streamlit</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
