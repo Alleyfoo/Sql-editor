@@ -8,81 +8,77 @@ import streamlit as st
 
 
 def render() -> None:
-    # Wrap in flex container
-    st.markdown('<div class="results-panel">', unsafe_allow_html=True)
+    # Use Streamlit container with key for CSS targeting
+    with st.container(key="results_panel"):
+        df: Optional[pd.DataFrame] = st.session_state.get("results_df")
+        elapsed = st.session_state.get("last_exec_ms")
 
-    df: Optional[pd.DataFrame] = st.session_state.get("results_df")
-    elapsed = st.session_state.get("last_exec_ms")
+        if df is None:
+            tables: dict = st.session_state.get("tables", {})
+            dataset_df: Optional[pd.DataFrame] = st.session_state.get("dataset_df")
+            conn = st.session_state.get("conn")
 
-    if df is None:
-        tables: dict = st.session_state.get("tables", {})
-        dataset_df: Optional[pd.DataFrame] = st.session_state.get("dataset_df")
-        conn = st.session_state.get("conn")
+            if tables and conn:
+                # Multi-table dataset — show one tab per table
+                _render_multitable_preview(tables, conn)
+            elif dataset_df is not None:
+                _render_data_preview(dataset_df)
+            else:
+                st.markdown(
+                    '<div style="padding:48px;text-align:center;color:#8E867B;font-size:13px;">'
+                    "Load a CSV to get started."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            return
 
-        if tables and conn:
-            # Multi-table dataset — show one tab per table
-            _render_multitable_preview(tables, conn)
-        elif dataset_df is not None:
-            _render_data_preview(dataset_df)
-        else:
+        # Compact stats bar
+        n_rows, n_cols = df.shape
+        elapsed_str = f"{elapsed:.0f} ms" if elapsed is not None else "—"
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+        size_kb = round(len(csv_bytes) / 1024, 1)
+
+        stats_col, export_col = st.columns([1, 0.18])
+        with stats_col:
             st.markdown(
-                '<div style="padding:48px;text-align:center;color:#8E867B;font-size:13px;">'
-                "Load a CSV to get started."
-                "</div>",
+                f"""
+                <div class="results-stats-bar">
+                  <span class="rs"><strong>{n_rows:,}</strong> rows</span>
+                  <span class="rs-sep">·</span>
+                  <span class="rs"><strong>{n_cols}</strong> cols</span>
+                  <span class="rs-sep">·</span>
+                  <span class="rs"><strong>{elapsed_str}</strong> exec</span>
+                  <span class="rs-sep">·</span>
+                  <span class="rs"><strong>{size_kb} KB</strong> scanned</span>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
-        st.markdown('</div>', unsafe_allow_html=True)
-        return
+        with export_col:
+            st.download_button(
+                "Export CSV ↗",
+                data=csv_bytes,
+                file_name="query_result.csv",
+                mime="text/csv",
+                width='stretch',
+            )
 
-    # Compact stats bar
-    n_rows, n_cols = df.shape
-    elapsed_str = f"{elapsed:.0f} ms" if elapsed is not None else "—"
-    csv_bytes = df.to_csv(index=False).encode("utf-8")
-    size_kb = round(len(csv_bytes) / 1024, 1)
-
-    stats_col, export_col = st.columns([1, 0.18])
-    with stats_col:
-        st.markdown(
-            f"""
-            <div class="results-stats-bar">
-              <span class="rs"><strong>{n_rows:,}</strong> rows</span>
-              <span class="rs-sep">·</span>
-              <span class="rs"><strong>{n_cols}</strong> cols</span>
-              <span class="rs-sep">·</span>
-              <span class="rs"><strong>{elapsed_str}</strong> exec</span>
-              <span class="rs-sep">·</span>
-              <span class="rs"><strong>{size_kb} KB</strong> scanned</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with export_col:
-        st.download_button(
-            "Export CSV ↗",
-            data=csv_bytes,
-            file_name="query_result.csv",
-            mime="text/csv",
-            width='stretch',
+        table_tab, chart_tab, summary_tab, json_tab = st.tabs(
+            ["Table", "Chart", "Summary", "JSON"]
         )
 
-    table_tab, chart_tab, summary_tab, json_tab = st.tabs(
-        ["Table", "Chart", "Summary", "JSON"]
-    )
+        with table_tab:
+            _render_table(df)
 
-    with table_tab:
-        _render_table(df)
+        with chart_tab:
+            _render_chart(df)
 
-    with chart_tab:
-        _render_chart(df)
+        with summary_tab:
+            _render_summary(df)
 
-    with summary_tab:
-        _render_summary(df)
-
-    with json_tab:
-        st.caption("Showing first 200 rows.")
-        st.json(df.head(200).to_dict(orient="records"))
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        with json_tab:
+            st.caption("Showing first 200 rows.")
+            st.json(df.head(200).to_dict(orient="records"))
 
     # Footer
     import datetime

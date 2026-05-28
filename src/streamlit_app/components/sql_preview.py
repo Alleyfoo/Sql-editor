@@ -17,61 +17,58 @@ def render() -> None:
     results_df = st.session_state.get("results_df")
     n_rows_est = f"{len(results_df):,}" if results_df is not None else "—"
 
-    # Wrap in fixed-height container
-    st.markdown('<div class="sql-region">', unsafe_allow_html=True)
-
-    # Dark SQL panel — toolbar + hand-rolled highlighted code in one HTML block
-    st.markdown(
-        f"""
-        <div class="sql-panel">
-          <div class="sql-toolbar">
-            <span class="dot"></span>
-            <span class="stat">SELECT-only</span>
-            <span class="sep">·</span>
-            <span class="stat"><strong>{n_rows_est}</strong> rows</span>
-            <span class="sep">·</span>
-            <span class="stat">SQLite in-memory</span>
-            <div class="toolbar-actions">
-              <button class="ghost-btn"
-                onclick="navigator.clipboard.writeText(
-                  document.querySelector('.sql-block').innerText
-                )">Copy</button>
-            </div>
-          </div>
-          {render_sql_block(sql)}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Run bar — native Streamlit widgets below the panel
-    run_col, explain_col, badge_col = st.columns([0.22, 0.18, 0.60])
-    with run_col:
-        run = st.button(
-            "▶ Run query",
-            type="primary",
-            width='stretch',
-            disabled=not (has_conn and sql_valid),
-            key="run_button",
-        )
-    with explain_col:
-        explain = st.button(
-            "Explain",
-            width='stretch',
-            disabled=not sql_valid,
-            key="explain_button",
-        )
-    with badge_col:
+    # Use Streamlit container with key for CSS targeting
+    with st.container(key="sql_region"):
+        # Dark SQL panel — toolbar + hand-rolled highlighted code in one HTML block
         st.markdown(
-            '<div style="padding-top:6px;display:flex;align-items:center;gap:14px;">'
-            '<span class="safety-badge">&#128274; SELECT-only &nbsp;·&nbsp; read-only conn</span>'
-            '<span style="font-size:11px;color:#8E867B;font-family:\'IBM Plex Mono\',monospace;">'
-            '&#8984; &#8629; to run</span>'
-            "</div>",
+            f"""
+            <div class="sql-panel">
+              <div class="sql-toolbar">
+                <span class="dot"></span>
+                <span class="stat">SELECT-only</span>
+                <span class="sep">·</span>
+                <span class="stat"><strong>{n_rows_est}</strong> rows</span>
+                <span class="sep">·</span>
+                <span class="stat">SQLite in-memory</span>
+                <div class="toolbar-actions">
+                  <button class="ghost-btn"
+                    onclick="navigator.clipboard.writeText(
+                      document.querySelector('.sql-block').innerText
+                    )">Copy</button>
+                </div>
+              </div>
+              {render_sql_block(sql)}
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Run bar — native Streamlit widgets below the panel
+        run_col, explain_col, badge_col = st.columns([0.22, 0.18, 0.60])
+        with run_col:
+            run = st.button(
+                "▶ Run query",
+                type="primary",
+                width='stretch',
+                disabled=not (has_conn and sql_valid),
+                key="run_button",
+            )
+        with explain_col:
+            explain = st.button(
+                "Explain",
+                width='stretch',
+                disabled=not sql_valid,
+                key="explain_button",
+            )
+        with badge_col:
+            st.markdown(
+                '<div style="padding-top:6px;display:flex;align-items:center;gap:14px;">'
+                '<span class="safety-badge">&#128274; SELECT-only &nbsp;·&nbsp; read-only conn</span>'
+                '<span style="font-size:11px;color:#8E867B;font-family:\'IBM Plex Mono\',monospace;">'
+                '&#8984; &#8629; to run</span>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     if run:
         _run_query(sql)

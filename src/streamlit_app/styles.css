@@ -145,61 +145,62 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 
 /* ── SQL preview region (fixed 280px) ──────────────────────────────────── */
-.sql-region {
+.st-key-sql_region {
   height: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-.sql-region .sql-panel {
+.st-key-sql_region .sql-panel {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
-.sql-region .sql-block {
+.st-key-sql_region .sql-block {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
 }
 
 /* ── Results panel (flex to fill available space) ────────────────────── */
-.results-panel {
+.st-key-results_panel {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.results-panel [data-testid="stDataFrame"] {
+.st-key-results_panel [data-testid="stDataFrame"] {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
-.results-panel [data-testid="stDataFrame"] > div {
+.st-key-results_panel [data-testid="stDataFrame"] > div {
   height: 100% !important;
 }
 
 /* ── Assistant rail (full viewport height) ─────────────────────────────── */
-.asst-rail {
+.st-key-asst_rail {
   height: calc(100vh - 56px - 44px - 24px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.asst-rail [data-testid="stChatMessage"] {
+.st-key-asst_rail [data-testid="stChatMessage"] {
   background: transparent !important;
   border-bottom: 1px solid var(--line-2);
   margin: 0 !important;
   padding: 8px 12px !important;
 }
-.asst-rail .assistant-scroll {
+.st-key-asst_rail .assistant-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
 }
-.asst-rail .asst-input {
+.st-key-asst_rail .asst-input {
   flex-shrink: 0;
   border-top: 1px solid var(--line);
   padding: 8px 10px;

@@ -64,14 +64,13 @@ def run() -> None:
         sql_preview.render()
 
     with chat_col:
-        st.markdown('<div class="asst-rail">', unsafe_allow_html=True)
-        with st.container(border=True, key="chat_panel"):
-            st.markdown(
-                '<div class="chat-panel-header">💬 Assistant</div>',
-                unsafe_allow_html=True,
-            )
-            ask.render()
-            assistant.render()
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(key="asst_rail"):
+            with st.container(border=True, key="chat_panel"):
+                st.markdown(
+                    '<div class="chat-panel-header">💬 Assistant</div>',
+                    unsafe_allow_html=True,
+                )
+                ask.render()
+                assistant.render()
 
     _render_statusbar()
