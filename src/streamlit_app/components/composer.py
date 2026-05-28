@@ -271,6 +271,24 @@ def _join_section(
             except Exception:
                 pass
 
+        # Show JOIN clause preview
+        if model.joins:
+            st.markdown('<div class="cs-subhead">JOIN clause preview</div>', unsafe_allow_html=True)
+            join_clauses = []
+            for join in model.joins:
+                try:
+                    join_clauses.append(join.to_sql())
+                except Exception:
+                    pass
+            if join_clauses:
+                preview_sql = " ".join(join_clauses)
+                st.markdown(
+                    f'<div class="sql-preview" style="font-family:\'IBM Plex Mono\',monospace;'
+                    f'font-size:11px;background:var(--bg-2);padding:8px 10px;border-radius:4px;'
+                    f'color:var(--ink-2);word-break:break-word;">{preview_sql}</div>',
+                    unsafe_allow_html=True,
+                )
+
 
 # ── WHERE ─────────────────────────────────────────────────────────────────────
 
