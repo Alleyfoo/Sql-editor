@@ -8,6 +8,9 @@ import streamlit as st
 
 
 def render() -> None:
+    # Wrap in flex container
+    st.markdown('<div class="results-panel">', unsafe_allow_html=True)
+
     df: Optional[pd.DataFrame] = st.session_state.get("results_df")
     elapsed = st.session_state.get("last_exec_ms")
 
@@ -28,6 +31,7 @@ def render() -> None:
                 "</div>",
                 unsafe_allow_html=True,
             )
+        st.markdown('</div>', unsafe_allow_html=True)
         return
 
     # Compact stats bar
@@ -77,6 +81,8 @@ def render() -> None:
     with json_tab:
         st.caption("Showing first 200 rows.")
         st.json(df.head(200).to_dict(orient="records"))
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Footer
     import datetime

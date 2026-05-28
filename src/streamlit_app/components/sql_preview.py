@@ -17,6 +17,9 @@ def render() -> None:
     results_df = st.session_state.get("results_df")
     n_rows_est = f"{len(results_df):,}" if results_df is not None else "—"
 
+    # Wrap in fixed-height container
+    st.markdown('<div class="sql-region">', unsafe_allow_html=True)
+
     # Dark SQL panel — toolbar + hand-rolled highlighted code in one HTML block
     st.markdown(
         f"""
@@ -67,6 +70,8 @@ def render() -> None:
             "</div>",
             unsafe_allow_html=True,
         )
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if run:
         _run_query(sql)

@@ -35,6 +35,252 @@
   --r-3: 10px;
 }
 
+/* ── Viewport lock: kill page scroll, only internal panels scroll ──────── */
+html, body, [data-testid="stAppViewContainer"] {
+  height: 100vh;
+  overflow: hidden;
+}
+
+[data-testid="stMain"] {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main .block-container {
+  height: calc(100vh - 56px);   /* minus Streamlit's top toolbar */
+  max-height: calc(100vh - 56px);
+  padding-top: 8px !important;
+  padding-bottom: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The vertical block inside main becomes the flex container for everything */
+[data-testid="stMain"] > [data-testid="stVerticalBlock"] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px !important;
+}
+
+/* ── Compact header strip (44px) ───────────────────────────────────────── */
+[data-testid="stMain"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-child {
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  align-items: center !important;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+
+/* The popover triggers become compact pill buttons */
+[data-testid="stMain"] > [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-child .stPopover button {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+
+/* Brand strip */
+.brand-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.brand-mark {
+  width: 20px;
+  height: 20px;
+  background: var(--ink);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--paper);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.brand-name {
+  color: var(--ink);
+}
+.brand-tag {
+  color: var(--ink-3);
+  font-weight: 400;
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+/* Breadcrumbs */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs .sep {
+  color: var(--ink-4);
+  font-size: 10px;
+}
+.crumbs .chip-csv {
+  background: var(--info-soft);
+  color: var(--info);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+.crumbs .active {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* ── SQL preview region (fixed 280px) ──────────────────────────────────── */
+.sql-region {
+  height: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sql-region .sql-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.sql-region .sql-block {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── Results panel (flex to fill available space) ────────────────────── */
+.results-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.results-panel [data-testid="stDataFrame"] {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.results-panel [data-testid="stDataFrame"] > div {
+  height: 100% !important;
+}
+
+/* ── Assistant rail (full viewport height) ─────────────────────────────── */
+.asst-rail {
+  height: calc(100vh - 56px - 44px - 24px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.asst-rail [data-testid="stChatMessage"] {
+  background: transparent !important;
+  border-bottom: 1px solid var(--line-2);
+  margin: 0 !important;
+  padding: 8px 12px !important;
+}
+.asst-rail .assistant-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.asst-rail .asst-input {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: 8px 10px;
+  background: var(--paper);
+}
+
+/* ── Field strip (32px) ────────────────────────────────────────────────── */
+.field-strip {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.field-strip .table-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-right: 8px;
+  border-right: 1px solid var(--line);
+  margin-right: 4px;
+}
+.field-strip .field-chip {
+  font-size: 11.5px;
+  font-family: "IBM Plex Mono", monospace;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: white;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-strip .field-chip .type {
+  font-size: 9px;
+  color: var(--ink-4);
+  background: var(--line-2);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* ── Status bar (fixed bottom 24px) ────────────────────────────────────── */
+.app-statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  font-size: 11px;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--ink-3);
+  z-index: 100;
+}
+.app-statusbar .sb-right {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+}
+.app-statusbar .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  display: inline-block;
+}
+
 /* Global font — targeted selectors, not the brittle [class*="css"] */
 body,
 [data-testid="stAppViewContainer"],

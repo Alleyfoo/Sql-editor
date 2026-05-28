@@ -24,6 +24,24 @@ def _composer_dialog() -> None:
     composer.render()
 
 
+def _render_composer_in_sidebar() -> None:
+    """Render the full composer directly in the sidebar tab."""
+    if pending := st.session_state.pop("_pending_composer_sync", None):
+        for _k, _v in pending.items():
+            st.session_state[_k] = _v
+    
+    schema = st.session_state.get("schema", {})
+    if not schema:
+        st.markdown(
+            '<div style="font-size:12px;color:#B8B0A2;padding:20px 0;">Load a dataset to compose queries.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+    
+    from src.streamlit_app.components import composer
+    composer.render()
+
+
 def _render_composer_summary() -> None:
     """Mini query-builder card in the sidebar.
 
@@ -109,22 +127,28 @@ def render() -> None:
         )
         _render_dataset_card(dataset_name, meta, schema)
         st.divider()
-        tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
-        relationships: list = st.session_state.get("relationships", [])
-        if tables:
-            _render_multi_table_schema(tables, relationships)
-            if relationships:
-                st.divider()
-                _render_relationships(relationships)
+
+        # Tab system for Schema/Compose/History
+        schema_tab, compose_tab, history_tab = st.tabs(["📋 Schema", "🔧 Compose", "⏱ History"])
+
+        with schema_tab:
+            tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
+            relationships: list = st.session_state.get("relationships", [])
+            if tables:
+                _render_multi_table_schema(tables, relationships)
+                if relationships:
+                    st.divider()
+                    _render_relationships(relationships)
+            elif schema:
+                _render_schema_profile(schema)
             st.divider()
-        elif schema:
-            _render_schema_profile(schema)
-            st.divider()
-        _render_quick_queries_section(schema, has_data=bool(schema))
-        st.divider()
-        _render_composer_summary()
-        st.divider()
-        _render_recent_runs()
+            _render_quick_queries_section(schema, has_data=bool(schema))
+
+        with compose_tab:
+            _render_composer_in_sidebar()
+
+        with history_tab:
+            _render_recent_runs()
 
 
 def _render_dataset_card(name, meta, schema) -> None:

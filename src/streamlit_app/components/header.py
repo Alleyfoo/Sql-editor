@@ -66,44 +66,32 @@ def render() -> None:
     crumb_query = '<span class="active">Untitled query</span>' if dataset_name else ""
     sep = '<span class="sep">/</span>' if dataset_name else ""
 
-    topbar_html = f"""
-    <div style="
-        height:52px;display:flex;align-items:center;gap:14px;padding:0 22px;
-        border-bottom:1px solid #E4DFD2;background:#FBFAF6;margin-bottom:12px;
-    ">
-      <div style="display:flex;align-items:center;gap:9px;font-weight:600;font-size:13px;">
-        <div style="
-            width:22px;height:22px;background:#1A1714;border-radius:5px;
-            display:grid;place-items:center;color:#FBFAF6;position:relative;flex-shrink:0;
-        ">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="2" y="2" width="7" height="7" rx="1" stroke="#FBFAF6" stroke-width="1.2" fill="none"/>
-            <circle cx="9" cy="9" r="1.5" fill="#C2410C"/>
-          </svg>
-        </div>
-        Query Studio
-        <span style="color:#8E867B;font-weight:400;margin-left:2px;font-size:12px;">alpha</span>
-      </div>
-      <div style="
-          display:flex;align-items:center;gap:8px;color:#57514A;font-size:12.5px;
-          padding-left:12px;border-left:1px solid #E4DFD2;margin-left:4px;
-      ">
-        workspace {sep} {crumb_csv} {sep} {crumb_query}
-      </div>
-      <div style="flex:1;"></div>
-      {_llm_status_pill_html()}
-      <span style="font-size:12px;color:#8E867B;margin-left:10px;">
-        {datetime.now(timezone.utc).strftime("%H:%M UTC")}
-      </span>
-    </div>
-    """
-    st.markdown(topbar_html, unsafe_allow_html=True)
-
-    csv_col, llm_col = st.columns([5, 3], gap="small")
-
-    # File upload in a popover
-    with csv_col:
-        with st.popover("Open CSV", width='stretch'):
+    # Compact header: brand + crumbs + popovers in one 44px row
+    head_cols = st.columns([0.22, 0.5, 0.14, 0.14])
+    
+    with head_cols[0]:
+        st.markdown(
+            '<div class="brand-strip">'
+            '<span class="brand-mark">▣</span>'
+            '<span class="brand-name">Query Studio</span>'
+            '<span class="brand-tag">alpha</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    
+    with head_cols[1]:
+        ds_label = dataset_name or "no dataset"
+        st.markdown(
+            f'<div class="crumbs">'
+            f'workspace <span class="sep">›</span> '
+            f'<span>{ds_label}</span> '
+            f'<span class="sep">›</span> Untitled query'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    
+    with head_cols[2]:
+        with st.popover("📂 Open CSV", use_container_width=True):
             uploaded = st.file_uploader(
                 "Choose a CSV file",
                 type=["csv"],
@@ -142,10 +130,9 @@ def render() -> None:
                 width='stretch',
             ):
                 _handle_supply_chain_load()
-
-    # LLM model selector
-    with llm_col:
-        with st.popover("⚙ LLM model", width='stretch'):
+    
+    with head_cols[3]:
+        with st.popover("⚙ LLM", use_container_width=True):
             _render_model_selector()
 
 
