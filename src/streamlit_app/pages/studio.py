@@ -82,3 +82,14 @@ def render() -> None:
                 assistant.render()
 
     _render_statusbar()
+
+
+# ---------------------------------------------------------------------------
+# When ``streamlit_app.py`` runs us via ``st.navigation`` / ``page.run()``,
+# the page module is exec'd as ``__main__`` and the body of ``render()``
+# is what paints the page.  ``app.py`` re-imports this module — Python sets
+# ``__name__`` to its dotted path, so the guard below skips the call and
+# the import stays side-effect-free.
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    render()

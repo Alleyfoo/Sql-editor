@@ -887,3 +887,14 @@ def render() -> None:
         _handoff(heuristic.model)
     if use_l and llm_call and llm_call.model is not None:
         _handoff(llm_call.model)
+
+
+# ---------------------------------------------------------------------------
+# When ``streamlit_app.py`` runs us via ``st.navigation`` / ``page.run()``,
+# the page module is exec'd as ``__main__`` and the body of ``render()``
+# is what paints the page.  AppTest tests import the module (so
+# ``__name__`` is the dotted path) and call ``render()`` themselves — the
+# guard below keeps the import side-effect-free.
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    render()

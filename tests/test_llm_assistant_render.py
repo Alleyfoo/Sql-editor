@@ -90,6 +90,63 @@ def test_page_module_exposes_render():
     assert callable(llm_assistant.render)
 
 
+def test_page_runs_render_when_execd_as_main():
+    """Regression test for the "blank page" bug.
+
+    ``st.navigation`` runs the page by exec'ing its bytecode in a fresh
+    ``__main__`` module.  The page module must call ``render()`` at the
+    end so the body actually paints — otherwise the sidebar selector
+    shows but the page body is blank.
+
+    We simulate that exec by reading the page's source, compiling it
+    with ``__name__ == "__main__"``, and running it inside an AppTest
+    session.  If the module-level ``if __name__ == "__main__": render()``
+    is missing, the test will see zero body elements.
+    """
+    from pathlib import Path
+    from streamlit.testing.v1 import AppTest
+
+    # Read the page source from disk so we get the freshest version,
+    # not whatever the test session has already imported.
+    page_path = llm_assistant.__file__
+    src = Path(page_path).read_text(encoding="utf-8")
+    compiled = compile(src, page_path, "exec")
+
+    # Inject the necessary imports so the page's imports resolve, then
+    # exec the bytecode with __name__ == "__main__" — which is what
+    # st.navigation does.
+    import textwrap
+
+    test_script = textwrap.dedent(f"""
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        from src.streamlit_app.demo_dataset import load_demo
+        conn, schema, df, meta = load_demo()
+        st.session_state["conn"] = conn
+        st.session_state["schema"] = schema
+
+        # Now exec the page's bytecode under __name__ == "__main__"
+        from pathlib import Path
+        page_path = r"{page_path}"
+        src = Path(page_path).read_text(encoding="utf-8")
+        compiled = compile(src, page_path, "exec")
+        exec(compiled, {{"__name__": "__main__", "__file__": page_path}})
+    """)
+    at = AppTest.from_string(test_script).run()
+    assert not at.exception, (
+        f"page exec'd as __main__ raised: {at.exception}"
+    )
+    # The body should render *something* — at minimum the safety banner
+    # markdown.  An empty list means the page was exec'd but render()
+    # was never called, which is the "blank page" bug.
+    body = len(at.markdown) + len(at.info) + len(at.success) + len(at.error)
+    assert body > 0, (
+        "page module exec'd as __main__ rendered no body elements — "
+        "render() is not being called at module level. This is the "
+        "'blank page / selector visible but body empty' bug."
+    )
+
+
 def test_page_module_lists_example_questions():
     """The chip examples should include the README's headline phrasings."""
     qs = llm_assistant._EXAMPLE_QUESTIONS
