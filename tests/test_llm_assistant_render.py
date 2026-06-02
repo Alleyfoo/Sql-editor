@@ -303,3 +303,204 @@ def test_heuristic_column_shows_progress_and_code(demo):
     assert any("Parsed" in t for t in success_texts), (
         f"heuristic column should announce a successful parse; saw: {success_texts!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Schema-aware chip generation
+# ---------------------------------------------------------------------------
+
+
+def test_schema_aware_chips_pick_measure_and_group():
+    """Chips should mention a numeric measure and a text group-by column."""
+    schema = {
+        "revenue": "numeric",
+        "region": "text",
+        "order_date": "date",
+        "category": "text",
+    }
+    chips = llm_assistant._schema_aware_example_questions(schema)
+    assert chips
+    assert any("revenue" in c and "region" in c for c in chips), (
+        f"expected a 'sum revenue by region' chip; got {chips!r}"
+    )
+    assert any("top 10" in c for c in chips)
+    assert any("monthly" in c and "revenue" in c for c in chips)
+
+
+def test_schema_aware_chips_fallback_to_static():
+    """Empty / tiny schemas should fall back to the static list."""
+    assert llm_assistant._schema_aware_example_questions({}) == list(
+        llm_assistant._EXAMPLE_QUESTIONS
+    )
+
+
+# ---------------------------------------------------------------------------
+# 10. Row-count estimate helper
+# ---------------------------------------------------------------------------
+
+
+def test_estimate_row_count_runs_sql_against_conn(demo):
+    """Estimate should report the actual row count for a valid SQL.
+
+    We can't call the helper directly from a unit test because
+    ``st.session_state`` requires a running Streamlit session, so we
+    test the page's behaviour: when the input is populated with a
+    known-good query, the heuristic column's success badge should
+    include a row count (a number, formatted with a thousands
+    separator).  The actual value depends on the dataset — for the
+    "sum revenue by region" query on the demo dataset there are 3
+    distinct regions, so the GROUP BY returns 3 rows.
+    """
+    real_model = parse_heuristic("sum revenue by region", demo["schema"]).model
+    from streamlit.testing.v1 import AppTest
+
+    # Run the page in a custom AppTest script that pre-populates
+    # session_state.conn with the demo connection.
+    script = textwrap.dedent(
+        f"""
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        from src.streamlit_app.demo_dataset import load_demo
+        from src.streamlit_app.pages import llm_assistant
+        # Inject the test's demo connection into the page's session state
+        # so the row-count helper has a real conn to query.
+        conn, schema, df, meta = load_demo()
+        st.session_state["conn"] = conn
+        st.session_state["schema"] = schema
+        llm_assistant.render()
+        """
+    )
+
+    at = AppTest.from_string(script).run()
+    # Populate the input and trigger a heuristic parse by rerunning.
+    at.text_area[0].set_value("sum revenue by region")
+    at.run()
+
+    # Heuristic column should now show a non-empty row count in its
+    # success badge.  We accept any positive integer — the demo
+    # dataset has 3 distinct regions so this query returns 3 rows.
+    success_texts = [el.value for el in at.success]
+    row_count_seen = any("rows" in t for t in success_texts)
+    assert row_count_seen, (
+        f"heuristic column should show a row count; saw: {success_texts!r}"
+    )
+    # And it must have rendered without exception.
+    assert not at.exception
+
+
+def test_estimate_row_count_returns_none_for_bad_sql(demo):
+    """Bad SQL should not raise — return None instead."""
+    assert llm_assistant._estimate_row_count("SELECT FROM nonexistent") is None
+
+
+# ---------------------------------------------------------------------------
+# 11. Comparison log
+# ---------------------------------------------------------------------------
+
+
+def test_log_appends_on_run(monkeypatch, demo):
+    """Each Run-comparison press should add one log entry."""
+    real_model = parse_heuristic("sum revenue by region", demo["schema"]).model
+    monkeypatch.setattr(
+        llm_assistant, "nl_to_query_model",
+        lambda *a, **kw: (real_model, {"reply": "ok", "selected_columns": []}),
+    )
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_build_page_script()).run()
+    at.text_area[0].set_value("sum revenue by region")
+    run_btn = next(b for b in at.button if b.key == "llm_showcase_run")
+    run_btn.click().run()
+
+    assert not at.exception
+    log = at.session_state.filtered_state.get(llm_assistant.LOG_KEY, [])
+    assert len(log) == 1
+    entry = log[0]
+    assert entry["input"] == "sum revenue by region"
+    assert entry["llm_status"] == "accepted"
+    assert "SUM" in entry["llm_sql"].upper()
+
+
+def test_log_capped_at_max(monkeypatch, demo):
+    """The log should not grow beyond LOG_MAX entries."""
+    real_model = parse_heuristic("sum revenue by region", demo["schema"]).model
+    monkeypatch.setattr(
+        llm_assistant, "nl_to_query_model",
+        lambda *a, **kw: (real_model, {}),
+    )
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_build_page_script()).run()
+    at.text_area[0].set_value("sum revenue by region")
+    run_btn = next(b for b in at.button if b.key == "llm_showcase_run")
+    # Press the run button more than LOG_MAX times.
+    for _ in range(llm_assistant.LOG_MAX + 5):
+        run_btn.click().run()
+
+    log = at.session_state.filtered_state.get(llm_assistant.LOG_KEY, [])
+    assert len(log) == llm_assistant.LOG_MAX
+
+
+# ---------------------------------------------------------------------------
+# 12. Raw LLM JSON plan
+# ---------------------------------------------------------------------------
+
+
+def test_run_comparison_renders_raw_json_plan(monkeypatch, demo):
+    """On a successful LLM call the page must show the verbatim JSON plan."""
+    real_model = parse_heuristic("sum revenue by region", demo["schema"]).model
+    raw = {
+        "reply": "I'll sum revenue by region.",
+        "selected_columns": ["region", "revenue"],
+        "aggregations": [{"function": "SUM", "column": "revenue", "alias": "total"}],
+        "group_by": ["region"],
+    }
+    monkeypatch.setattr(
+        llm_assistant, "nl_to_query_model",
+        lambda *a, **kw: (real_model, raw),
+    )
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_build_page_script()).run()
+    at.text_area[0].set_value("sum revenue by region")
+    run_btn = next(b for b in at.button if b.key == "llm_showcase_run")
+    run_btn.click().run()
+
+    assert not at.exception
+    # The raw-JSON expander renders the payload. AppTest surfaces json
+    # elements directly.
+    json_payloads = [el.value for el in at.json]
+    assert any("I'll sum revenue by region." in str(p) for p in json_payloads), (
+        f"raw LLM JSON plan must include the model's reply; saw: {json_payloads!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 13. Diff view
+# ---------------------------------------------------------------------------
+
+
+def test_diff_renders_when_both_sides_have_models(monkeypatch, demo):
+    """Plan diff rows must appear when both heuristic and LLM have plans."""
+    real_model = parse_heuristic("sum revenue by region", demo["schema"]).model
+    monkeypatch.setattr(
+        llm_assistant, "nl_to_query_model",
+        lambda *a, **kw: (real_model, {}),
+    )
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(_build_page_script()).run()
+    at.text_area[0].set_value("sum revenue by region")
+    run_btn = next(b for b in at.button if b.key == "llm_showcase_run")
+    run_btn.click().run()
+
+    assert not at.exception
+    markdown_texts = [el.value for el in at.markdown]
+    # The diff header "Plan diff (heuristic vs LLM)" should appear.
+    assert any("Plan diff" in t for t in markdown_texts), (
+        f"Plan diff header should render; saw markdown: {markdown_texts!r}"
+    )

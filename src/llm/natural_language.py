@@ -1138,7 +1138,8 @@ def nl_to_query_model(
     selected_columns: Optional[List[str]] = None,
     history: Optional[List[tuple]] = None,
     table_name: str = "data",
-) -> QueryModel:
+    return_raw: bool = False,
+):
     """Translate a natural-language request into a validated ``QueryModel``.
 
     ``client`` is injectable so tests can pass a fake without a network
@@ -1152,6 +1153,12 @@ def nl_to_query_model(
     ``history`` — list of ``(question, reply)`` tuples from prior turns
     (oldest first, already trimmed to the configured depth).  Included
     in the prompt so the model can resolve follow-up references.
+
+    ``return_raw`` — if True, return ``(model, raw_payload)`` instead
+    of just ``model``.  ``raw_payload`` is the literal JSON object the
+    model produced (post the schema-repair retry).  Used by the
+    showcase page to display the LLM's plan verbatim.  Backward
+    compatible: existing callers get a ``QueryModel`` unchanged.
     """
     if not isinstance(nl, str) or not nl.strip():
         raise LLMError("natural-language request is empty")
@@ -1201,6 +1208,8 @@ def nl_to_query_model(
                 f"{first_exc}; retry failed: {retry_exc}. "
                 f"Available columns: {', '.join(schema.keys())}"
             ) from retry_exc
+        if return_raw:
+            payload = payload_retry
 
     # Post-parse repair for common analytics phrasing:
     # "per day"/"by day" should bucket date columns by day, not full timestamp.
@@ -1316,6 +1325,8 @@ def nl_to_query_model(
         model.group_by = []
         model.order_by = []
 
+    if return_raw:
+        return model, payload
     return model
 
 

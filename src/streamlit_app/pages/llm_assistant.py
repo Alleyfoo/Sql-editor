@@ -28,12 +28,13 @@ from __future__ import annotations
 
 import copy
 import time
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
 
 from src.config import load_config
+from src.executor import ExecutionError, execute
 from src.heuristic_nl import HeuristicResult, parse_heuristic
 from src.llm.natural_language import (
     LLMConfig,
@@ -50,11 +51,14 @@ from src.streamlit_app.demo_dataset import (
     DEMO_NAME,
     load_demo,
 )
+from src.streamlit_app.llm_health import probe_ollama
 from src.streamlit_app.styles import inject_css
 
 
 # ---------------------------------------------------------------------------
-# Example questions — used as clickable chips and to seed the input
+# Example questions — used as clickable chips and to seed the input.
+# Schema-aware variants are computed at render time in
+# ``_schema_aware_example_questions``; this static list is the fallback.
 # ---------------------------------------------------------------------------
 
 _EXAMPLE_QUESTIONS: List[str] = [
@@ -91,7 +95,12 @@ def _render_safety_banner() -> None:
     )
     st.markdown(
         '<div class="llm-assistant-safety">'
-        '<div class="safety-heading">How the LLM stays safe here</div>'
+        '<div class="safety-heading">'
+        'How the LLM stays safe here &nbsp;'
+        '<a href="https://github.com/Alleyfoo/Sql-editor#safety-guarantees" '
+        'target="_blank" '
+        'style="color:#C2410C;text-decoration:none;font-size:10px;font-weight:600;">'
+        '↗ README</a></div>'
         f"{pills}"
         "</div>",
         unsafe_allow_html=True,
@@ -148,13 +157,16 @@ class _LlmCallResult:
     model: Optional[QueryModel]
     latency_ms: float
     detail: str = ""  # extra info: retry succeeded, error message, etc.
+    raw_payload: Optional[Dict[str, Any]] = None  # the LLM's literal JSON plan
 
 
 def _call_llm(nl: str, schema: dict, cfg: LLMConfig) -> _LlmCallResult:
     """Call the configured LLM and return a structured result.
 
     Never raises — every failure mode is encoded in the returned
-    ``_LlmCallResult.status``.
+    ``_LlmCallResult.status``.  On a successful call we also capture the
+    raw JSON payload the model produced (post the schema-repair retry)
+    so the page can show the LLM's plan verbatim.
     """
     try:
         client = make_llm_client(cfg)
@@ -168,7 +180,9 @@ def _call_llm(nl: str, schema: dict, cfg: LLMConfig) -> _LlmCallResult:
 
     t0 = time.perf_counter()
     try:
-        model = nl_to_query_model(nl, schema, client=client, config=cfg)
+        model, raw_payload = nl_to_query_model(
+            nl, schema, client=client, config=cfg, return_raw=True,
+        )
     except RouteToPythonError as exc:
         return _LlmCallResult(
             status="python_route",
@@ -195,6 +209,7 @@ def _call_llm(nl: str, schema: dict, cfg: LLMConfig) -> _LlmCallResult:
         status="accepted",
         model=model,
         latency_ms=(time.perf_counter() - t0) * 1000.0,
+        raw_payload=raw_payload,
     )
 
 
@@ -224,7 +239,11 @@ def _render_heuristic_column(result: HeuristicResult) -> None:
         )
         return
 
-    st.success(f"✓ Parsed  ·  confidence **{result.confidence:.2f}**")
+    sql = result.model.to_sql()
+    row_count = _estimate_row_count(sql)
+    row_badge = f"  ·  ≈ <strong>{row_count:,}</strong> rows" if row_count is not None else ""
+
+    st.success(f"✓ Parsed  ·  confidence **{result.confidence:.2f}**{row_badge}")
     st.progress(min(1.0, max(0.0, result.confidence)))
 
     if result.reasoning:
@@ -236,9 +255,8 @@ def _render_heuristic_column(result: HeuristicResult) -> None:
         with st.expander(f"Unrecognized tokens ({len(result.unrecognized)})", expanded=False):
             st.write(result.unrecognized)
 
-    sql = result.model.to_sql()
     st.markdown("**Generated SQL**")
-    st.code(sql, language="sql")
+    _render_sql_with_copy(sql, key="heuristic")
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +292,21 @@ def _render_llm_column(
         st.info("Press **Run comparison** below to call the model.")
         return
 
+    # Estimate row count for the LLM plan when we have one — rendered
+    # inline with the status badge.
+    row_chip = ""
+    if call.status == "accepted" and call.model is not None:
+        try:
+            sql_preview = call.model.to_sql()
+        except Exception:
+            sql_preview = ""
+        rc = _estimate_row_count(sql_preview) if sql_preview else None
+        if rc is not None:
+            row_chip = (
+                f"<span style='margin-left:6px;opacity:0.7;'>"
+                f"≈ {rc:,} rows</span>"
+            )
+
     badge_text, fg, bg, border = _STATUS_BADGES.get(
         call.status, _STATUS_BADGES["error"]
     )
@@ -284,6 +317,7 @@ def _render_llm_column(
         f"{badge_text}"
         f"<span style='margin-left:6px;opacity:0.7;'>"
         f"{call.latency_ms:.0f} ms</span>"
+        f"{row_chip}"
         f"</span>",
         unsafe_allow_html=True,
     )
@@ -315,9 +349,22 @@ def _render_llm_column(
     with st.expander("Query plan (JSON)", expanded=False):
         st.json(_model_to_dict(model))
 
+    # Show the *raw* LLM JSON if we captured it — this is the strongest
+    # possible "the LLM only emits a plan, not SQL" demonstration.  The
+    # model is supposed to include a `reply` field (one plain-English
+    # sentence) and may also include `column_formats` / `date_buckets`.
+    if call.raw_payload is not None:
+        with st.expander("LLM JSON plan (verbatim)", expanded=False):
+            st.caption(
+                "The literal JSON the model returned. Notice there is no "
+                "`sql` field — only a structured plan that the trusted "
+                "Python `to_sql()` emitter converts to SELECT-only SQL."
+            )
+            st.json(call.raw_payload)
+
     sql = model.to_sql()
     st.markdown("**Generated SQL**")
-    st.code(sql, language="sql")
+    _render_sql_with_copy(sql, key="llm")
 
 
 def _model_to_dict(model: QueryModel) -> dict:
@@ -327,6 +374,287 @@ def _model_to_dict(model: QueryModel) -> dict:
         return asdict(model)
     except Exception:
         return {"repr": repr(model)}
+
+
+# ---------------------------------------------------------------------------
+# LLM status pill — mirrors the Studio topbar pill so the user can see
+# whether their LLM is actually reachable before pressing the run button.
+# ---------------------------------------------------------------------------
+
+
+def _llm_status_pill_html() -> str:
+    """Inline HTML for an LLM health pill, mirroring the Studio topbar."""
+    try:
+        probe = probe_ollama()
+    except Exception as exc:  # pragma: no cover
+        return (
+            '<span class="llm-status-pill" '
+            f'title="probe error: {exc}" '
+            'style="background:#FAE7D0;color:#8A4A11;border:1px solid #E9C79A;">'
+            '<span class="pill-dot" style="background:#C2410C;"></span>'
+            "LLM: probe error</span>"
+        )
+
+    if probe.ok:
+        bg, fg, border, dot = "#E1F0E2", "#3F6B45", "#C8DDC9", "#3F8A4F"
+        label = f"LLM: connected · {probe.model}"
+        tooltip = f"{probe.host} · model {probe.model}"
+    else:
+        bg, fg, border, dot = "#FAE7D0", "#8A4A11", "#E9C79A", "#C2410C"
+        label = "LLM: offline"
+        tooltip = f"{probe.host} · {probe.detail or 'offline'}"
+    tooltip = tooltip.replace('"', "&quot;")
+    return (
+        f'<span class="llm-status-pill" title="{tooltip}" '
+        f'style="background:{bg};color:{fg};border:1px solid {border};">'
+        f'<span class="pill-dot" style="background:{dot};"></span>'
+        f"{label}</span>"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Row-count estimate — runs the SQL against the in-memory conn and
+# reports how many rows it would return.  Cheap because the data is
+# already in SQLite; the query is the same one ``▶ Run query`` will
+# execute.  Catches ExecutionError so a bad plan doesn't break the page.
+# ---------------------------------------------------------------------------
+
+
+def _estimate_row_count(sql: str) -> Optional[int]:
+    """Return the row count for ``sql`` against the active dataset, or
+    None if the SQL is invalid or no connection is loaded."""
+    conn = st.session_state.get("conn")
+    if conn is None or not sql or not sql.strip():
+        return None
+    try:
+        df = execute(conn, sql)
+        return len(df)
+    except ExecutionError:
+        return None
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Comparison log — keeps the last N (input, heuristic_sql, llm_sql,
+# llm_status) tuples in session state.  Rendered in an expander below
+# the comparison.  Modelled on parcel-ops' llm_saved_results.json.
+# ---------------------------------------------------------------------------
+
+LOG_KEY = "_llm_assistant_log"
+LOG_MAX = 12
+
+
+def _append_to_log(
+    nl: str,
+    heuristic: HeuristicResult,
+    call: _LlmCallResult,
+) -> None:
+    """Record one comparison run, capped at ``LOG_MAX`` entries."""
+    log = st.session_state.setdefault(LOG_KEY, [])
+    llm_sql = ""
+    if call.model is not None:
+        try:
+            llm_sql = call.model.to_sql()
+        except Exception:
+            llm_sql = ""
+    log.append({
+        "ts": time.strftime("%H:%M:%S"),
+        "input": nl,
+        "heuristic_sql": heuristic.model.to_sql() if heuristic.parsed and heuristic.model else None,
+        "heuristic_confidence": heuristic.confidence if heuristic.parsed else None,
+        "llm_status": call.status,
+        "llm_sql": llm_sql,
+        "llm_latency_ms": call.latency_ms,
+    })
+    st.session_state[LOG_KEY] = log[-LOG_MAX:]
+
+
+def _render_log() -> None:
+    log = st.session_state.get(LOG_KEY, [])
+    header = f"📒 Comparison log ({len(log)}/{LOG_MAX})"
+    with st.expander(header, expanded=False):
+        if not log:
+            st.caption(
+                "Each press of **▶ Run comparison** adds one entry here. "
+                "Useful for sharing reproducible demos or comparing how the "
+                "two paths handle the same question across rephrasings."
+            )
+            return
+        if st.button("Clear log", key="llm_log_clear"):
+            st.session_state[LOG_KEY] = []
+            st.rerun()
+        # Newest first
+        for entry in reversed(log):
+            status_colour = {
+                "accepted": "#15803D",
+                "python_route": "#1D4ED8",
+                "error": "#B45309",
+            }.get(entry["llm_status"], "#57514A")
+            st.markdown(
+                f'<div class="llm-log-entry">'
+                f'<div class="log-ts">{entry["ts"]}</div>'
+                f'<div class="log-nl">{_html_escape(entry["input"])[:200]}</div>'
+                f'<div class="log-status" style="color:{status_colour};">'
+                f'LLM: {entry["llm_status"]} · {entry["llm_latency_ms"]:.0f} ms</div>'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            cols = st.columns(2)
+            with cols[0]:
+                st.caption("Heuristic")
+                if entry["heuristic_sql"]:
+                    st.code(entry["heuristic_sql"], language="sql")
+                else:
+                    st.caption("— unrecognized —")
+            with cols[1]:
+                st.caption(f"LLM ({entry['llm_status']})")
+                if entry["llm_sql"]:
+                    st.code(entry["llm_sql"], language="sql")
+                else:
+                    st.caption("— no SQL —")
+
+
+def _html_escape(s: str) -> str:
+    import html
+    return html.escape(s)
+
+
+# ---------------------------------------------------------------------------
+# Diff view — walks two QueryModels field by field and renders a small
+# ✓ / ≠ / only-here / only-there table.  Only meaningful when both
+# sides parsed an accepted result.
+# ---------------------------------------------------------------------------
+
+
+def _format_filters(filters) -> List[str]:
+    out: List[str] = []
+    for f in filters or []:
+        op = f.operator.upper()
+        if op in ("IS NULL", "IS NOT NULL"):
+            out.append(f"{f.column} {op.lower()}")
+        else:
+            out.append(f"{f.column} {op} {f.value}")
+    return out
+
+
+def _format_aggs(aggs) -> List[str]:
+    out: List[str] = []
+    for a in aggs or []:
+        col = a.column if a.column != "*" else "rows"
+        out.append(f"{a.function}({col})")
+    return out
+
+
+def _format_order(order) -> List[str]:
+    return [f"{col} {d.upper()}" for col, d in (order or [])]
+
+
+def _render_diff(
+    heuristic: HeuristicResult,
+    call: Optional[_LlmCallResult],
+) -> None:
+    """Render a field-by-field comparison between the two plans."""
+    has_h = heuristic.parsed and heuristic.model is not None
+    has_l = call is not None and call.model is not None
+
+    if not (has_h and has_l):
+        # Need both sides to diff.
+        return
+
+    h = heuristic.model
+    l = call.model
+
+    rows: List[Tuple[str, str, str, str]] = []
+    # (label, h_value, l_value, status)
+    # status in: "agree", "disagree", "heuristic-only", "llm-only"
+
+    def _cmp_set(field_label: str, h_vals: List[str], l_vals: List[str]) -> None:
+        h_set = set(h_vals)
+        l_set = set(l_vals)
+        if h_set == l_set and h_set:
+            rows.append((field_label, sorted(h_set), sorted(l_set), "agree"))
+        elif not h_set and l_set:
+            rows.append((field_label, [], sorted(l_set), "llm-only"))
+        elif h_set and not l_set:
+            rows.append((field_label, sorted(h_set), [], "heuristic-only"))
+        else:
+            # Both have values but they differ
+            only_h = sorted(h_set - l_set)
+            only_l = sorted(l_set - h_set)
+            common = sorted(h_set & l_set)
+            h_repr = ", ".join(common + [f"+{v}" for v in only_h]) or "—"
+            l_repr = ", ".join(common + [f"+{v}" for v in only_l]) or "—"
+            rows.append((field_label, [h_repr], [l_repr], "disagree"))
+
+    _cmp_set("Selected", h.selected_columns or [], l.selected_columns or [])
+    _cmp_set("Group by",  h.group_by or [],       l.group_by or [])
+    _cmp_set("Order by",  _format_order(h.order_by), _format_order(l.order_by))
+    _cmp_set("Aggregations", _format_aggs(h.aggregations), _format_aggs(l.aggregations))
+    _cmp_set("Filters",   _format_filters(h.filters), _format_filters(l.filters))
+
+    # Scalar fields — limit
+    h_limit = h.limit
+    l_limit = l.limit
+    if h_limit is None and l_limit is None:
+        rows.append(("Limit", ["none"], ["none"], "agree"))
+    elif h_limit == l_limit:
+        rows.append(("Limit", [str(h_limit)], [str(l_limit)], "agree"))
+    else:
+        rows.append((
+            "Limit",
+            [str(h_limit) if h_limit is not None else "—"],
+            [str(l_limit) if l_limit is not None else "—"],
+            "disagree",
+        ))
+
+    if not rows:
+        return
+
+    st.markdown("**Plan diff (heuristic vs LLM)**")
+    st.caption(
+        "Field-by-field comparison. ✓ = both sides agree; "
+        "blue = heuristic only; orange = LLM only; amber = disagree."
+    )
+
+    parts = []
+    for label, h_vals, l_vals, status in rows:
+        mark_class = {
+            "agree": "agree",
+            "disagree": "disagree",
+            "heuristic-only": "heuristic-only",
+            "llm-only": "llm-only",
+        }[status]
+        mark_glyph = {
+            "agree": "✓",
+            "disagree": "≠",
+            "heuristic-only": "H",
+            "llm-only": "L",
+        }[status]
+        h_str = ", ".join(h_vals) if h_vals else "—"
+        l_str = ", ".join(l_vals) if l_vals else "—"
+        parts.append(
+            f'<div class="llm-diff-row">'
+            f'<span class="diff-mark {mark_class}">{mark_glyph}</span>'
+            f'<span class="diff-label">{_html_escape(label)}</span>'
+            f'<span class="diff-value"><b>H:</b> {_html_escape(h_str)} '
+            f'<span style="opacity:0.5;margin:0 6px;">|</span> '
+            f'<b>L:</b> {_html_escape(l_str)}</span>'
+            f"</div>"
+        )
+    st.markdown("".join(parts), unsafe_allow_html=True)
+
+
+def _render_sql_with_copy(sql: str, *, key: str) -> None:
+    """Render a SQL code block.
+
+    ``st.code`` already shows a native copy-on-hover icon, which is the
+    best UX for a side-by-side comparison view (no need for the heavy
+    dark panel the Studio uses for its single main SQL block).  The
+    ``key`` argument is reserved for future per-panel customisation.
+    """
+    del key  # currently unused
+    st.code(sql, language="sql")
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +674,60 @@ def _handoff(model: QueryModel) -> None:
     # The Studio's state.init() defaults ``model`` to an empty QueryModel.
     # Our deep-copied plan replaces that.
     st.switch_page("src/streamlit_app/pages/studio.py")
+
+
+def _schema_aware_example_questions(schema: Dict[str, str]) -> List[str]:
+    """Generate up to six example questions from the active schema.
+
+    Picks the first numeric + first text + first date column to build
+    natural-sounding phrasings.  Falls back to the static list when the
+    schema is missing or too small.
+
+    The generated chips use the same vocabulary the heuristic recognises
+    (``sum/by/monthly/top 10``) so they double as a quick way to see
+    what the heuristic can parse.
+    """
+    if not schema or len(schema) < 2:
+        return list(_EXAMPLE_QUESTIONS)
+
+    # Prefer columns that look like measures (numeric with revenue/sales/
+    # amount/price/cost/margin/qty/quantity in the name).
+    measure_kw = ("revenue", "sales", "amount", "price", "cost",
+                  "margin", "qty", "quantity", "total", "value")
+    numeric_cols = [c for c, t in schema.items() if t == "numeric"]
+    text_cols = [c for c, t in schema.items() if t == "text"]
+    date_cols = [c for c, t in schema.items() if t == "date"]
+
+    measure = next(
+        (c for c in numeric_cols if any(k in c.lower() for k in measure_kw)),
+        numeric_cols[0] if numeric_cols else None,
+    )
+    group_by = text_cols[0] if text_cols else None
+    date_col = date_cols[0] if date_cols else None
+
+    chips: List[str] = []
+    if measure and group_by:
+        chips.append(f"sum {measure} by {group_by}")
+    if measure and group_by:
+        chips.append(f"top 10 {group_by} by {measure}")
+    if group_by:
+        chips.append(f"count rows by {group_by}")
+    if measure:
+        chips.append(f"average {measure}")
+    if date_col and measure:
+        chips.append(f"monthly {measure} trend")
+    if date_col:
+        chips.append(f"{date_col} in 2024")
+
+    # Pad with the static list if we produced too few.
+    if len(chips) < 4:
+        for q in _EXAMPLE_QUESTIONS:
+            if q not in chips:
+                chips.append(q)
+            if len(chips) >= 6:
+                break
+
+    return chips[:6]
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +762,13 @@ def render() -> None:
     schema: dict = st.session_state.schema
     cfg: LLMConfig = load_llm_config(load_config() or {})
 
+    # Status pill — same one the Studio topbar shows, so the user knows
+    # whether the LLM is reachable *before* pressing Run comparison.
+    st.markdown(
+        f'<div style="margin:0 0 8px 0;">{_llm_status_pill_html()}</div>',
+        unsafe_allow_html=True,
+    )
+
     # ---- Input row ------------------------------------------------------
     # Chip clicks set ``_chip_prefill``; we apply it to the text-area
     # session_state key BEFORE the widget is instantiated, otherwise
@@ -398,10 +787,14 @@ def render() -> None:
         ),
         height=80,
     )
+    st.caption("Shift+Enter for a new line. The heuristic reruns on every change.")
 
     # Example chips — they only set a prefill key (read on the next run).
-    chip_cols = st.columns(len(_EXAMPLE_QUESTIONS))
-    for col, example in zip(chip_cols, _EXAMPLE_QUESTIONS):
+    # Generated from the active schema so the chips are useful, not
+    # just decorative copies of the README's ad copy.
+    chips = _schema_aware_example_questions(schema)
+    chip_cols = st.columns(len(chips))
+    for col, example in zip(chip_cols, chips):
         with col:
             if st.button(example, key=f"chip_{example}", width="stretch"):
                 st.session_state["_llm_showcase_chip_prefill"] = example
@@ -429,6 +822,8 @@ def render() -> None:
     if run_clicked and nl.strip():
         with st.spinner(f"Calling {cfg.provider} · {cfg.model}…"):
             llm_call = _call_llm(nl, schema, cfg)
+        if llm_call is not None:
+            _append_to_log(nl, heuristic, llm_call)
 
     # ---- Two-column comparison ------------------------------------------
     col_h, col_l = st.columns(2, gap="large")
@@ -438,6 +833,12 @@ def render() -> None:
     with col_l:
         with st.container(border=True, key="llm_assistant_panel"):
             _render_llm_column(llm_call, cfg)
+
+    # ---- Plan diff ------------------------------------------------------
+    _render_diff(heuristic, llm_call)
+
+    # ---- Comparison log ------------------------------------------------
+    _render_log()
 
     # ---- Handoff buttons -----------------------------------------------
     st.markdown("---")
@@ -463,6 +864,24 @@ def render() -> None:
             disabled=not (llm_call and llm_call.model is not None),
             key="llm_handoff_llm",
         )
+
+    # Disabled-state tooltips — Streamlit doesn't support tooltips on
+    # disabled buttons, so we render the reason next to each.
+    h_disabled_reason = (
+        None if heuristic.parsed
+        else "Heuristic didn't parse this input — try the LLM or rephrase."
+    )
+    l_disabled_reason = (
+        None if (llm_call and llm_call.model is not None)
+        else "Press ▶ Run comparison first to get an LLM plan."
+    )
+    if h_disabled_reason or l_disabled_reason:
+        bits = []
+        if h_disabled_reason:
+            bits.append(f"*Use heuristic plan*: {h_disabled_reason}")
+        if l_disabled_reason:
+            bits.append(f"*Use LLM plan*: {l_disabled_reason}")
+        st.caption("  \n".join(bits))
 
     if use_h and heuristic.parsed and heuristic.model is not None:
         _handoff(heuristic.model)

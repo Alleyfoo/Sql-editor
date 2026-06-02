@@ -1488,3 +1488,79 @@ hr.dashed-sep {
   border-radius: var(--r-3) !important;
   padding: 16px !important;
 }
+
+/* Diff rows for the plan-difference view between heuristic and LLM */
+.llm-diff-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.llm-diff-row .diff-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+.llm-diff-row .diff-mark.agree { background: #15803D; }
+.llm-diff-row .diff-mark.disagree { background: #B45309; }
+.llm-diff-row .diff-mark.heuristic-only { background: #1D4ED8; }
+.llm-diff-row .diff-mark.llm-only { background: #C2410C; }
+.llm-diff-row .diff-label {
+  font-weight: 600;
+  color: var(--ink-2);
+  min-width: 100px;
+}
+.llm-diff-row .diff-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+/* Comparison log entries */
+.llm-log-entry {
+  border-left: 3px solid var(--accent);
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: #FAF7F2;
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+}
+.llm-log-entry .log-ts {
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: .04em;
+}
+.llm-log-entry .log-nl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 2px 0 4px 0;
+}
+.llm-log-entry .log-status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+/* LLM status pill (mirrors the Studio topbar) */
+.llm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+.llm-status-pill .pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
