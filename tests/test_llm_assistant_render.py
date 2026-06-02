@@ -1,7 +1,8 @@
-"""Smoke tests for the LLM SQL Assistant page.
+"""Smoke tests for the LLM SQL Assistant page (under the tab model).
 
-The page exposes a side-by-side *heuristic vs LLM* comparison. These
-tests guard four invariants that the page must always satisfy:
+The page is one of three panels in the top-level tabbed app
+(``streamlit_app.py``).  These tests guard the invariants that the
+page must always satisfy:
 
 1. The page module imports and the public ``render`` entry point exists.
 2. The page advertises a safety banner that references the six layers
@@ -16,6 +17,9 @@ tests guard four invariants that the page must always satisfy:
    would fail.
 5. The LLM column surfaces both ``LLMError`` and ``RouteToPythonError``
    cleanly in the UI without crashing the page.
+6. The handoff path writes the right ``st.session_state`` keys to
+   switch tabs and pre-fill the Studio's ask bar — the heart of the
+   cross-tab workflow.
 
 We use ``streamlit.testing.v1.AppTest.from_string`` to run the page
 inside a simulated Streamlit session.  ``from_string`` takes the full
@@ -85,66 +89,15 @@ def _build_page_script(extra_body: str = "") -> str:
 
 
 def test_page_module_exposes_render():
-    """``render`` is the entry point ``st.navigation`` will call."""
+    """``render`` is the entry point the tabbed app calls.
+
+    Under the tab model the entry script imports the page module and
+    calls ``render()`` explicitly inside a ``with`` block — there is
+    no longer any ``__main__`` exec magic.  The function just has to
+    exist and be callable.
+    """
     assert hasattr(llm_assistant, "render")
     assert callable(llm_assistant.render)
-
-
-def test_page_runs_render_when_execd_as_main():
-    """Regression test for the "blank page" bug.
-
-    ``st.navigation`` runs the page by exec'ing its bytecode in a fresh
-    ``__main__`` module.  The page module must call ``render()`` at the
-    end so the body actually paints — otherwise the sidebar selector
-    shows but the page body is blank.
-
-    We simulate that exec by reading the page's source, compiling it
-    with ``__name__ == "__main__"``, and running it inside an AppTest
-    session.  If the module-level ``if __name__ == "__main__": render()``
-    is missing, the test will see zero body elements.
-    """
-    from pathlib import Path
-    from streamlit.testing.v1 import AppTest
-
-    # Read the page source from disk so we get the freshest version,
-    # not whatever the test session has already imported.
-    page_path = llm_assistant.__file__
-    src = Path(page_path).read_text(encoding="utf-8")
-    compiled = compile(src, page_path, "exec")
-
-    # Inject the necessary imports so the page's imports resolve, then
-    # exec the bytecode with __name__ == "__main__" — which is what
-    # st.navigation does.
-    import textwrap
-
-    test_script = textwrap.dedent(f"""
-        import streamlit as st
-        st.set_page_config = lambda *a, **kw: None
-        from src.streamlit_app.demo_dataset import load_demo
-        conn, schema, df, meta = load_demo()
-        st.session_state["conn"] = conn
-        st.session_state["schema"] = schema
-
-        # Now exec the page's bytecode under __name__ == "__main__"
-        from pathlib import Path
-        page_path = r"{page_path}"
-        src = Path(page_path).read_text(encoding="utf-8")
-        compiled = compile(src, page_path, "exec")
-        exec(compiled, {{"__name__": "__main__", "__file__": page_path}})
-    """)
-    at = AppTest.from_string(test_script).run()
-    assert not at.exception, (
-        f"page exec'd as __main__ raised: {at.exception}"
-    )
-    # The body should render *something* — at minimum the safety banner
-    # markdown.  An empty list means the page was exec'd but render()
-    # was never called, which is the "blank page" bug.
-    body = len(at.markdown) + len(at.info) + len(at.success) + len(at.error)
-    assert body > 0, (
-        "page module exec'd as __main__ rendered no body elements — "
-        "render() is not being called at module level. This is the "
-        "'blank page / selector visible but body empty' bug."
-    )
 
 
 def test_page_module_lists_example_questions():
@@ -561,3 +514,349 @@ def test_diff_renders_when_both_sides_have_models(monkeypatch, demo):
     assert any("Plan diff" in t for t in markdown_texts), (
         f"Plan diff header should render; saw markdown: {markdown_texts!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 14. Tab model — entry script, handoff, and Workflow tour wiring
+# ---------------------------------------------------------------------------
+
+
+def test_default_tab_is_studio():
+    """A fresh session must default to the Studio tab.
+
+    The entry script sets ``st.session_state["main_tabs"] = TAB_STUDIO``
+    when the key is missing.  AppTest starts with a clean session, so
+    the default-tab test exercises that path.
+    """
+    from streamlit.testing.v1 import AppTest
+    from src.streamlit_app import TAB_STUDIO
+
+    at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
+    assert not at.exception, f"entry script raised: {at.exception}"
+    assert at.session_state.filtered_state.get("main_tabs") == TAB_STUDIO
+
+
+def test_tabs_render_in_visible_order():
+    """The three top-level tabs must appear in left-to-right order.
+
+    Visible order is Studio, LLM, Workflow — the body execution order
+    is decoupled (Studio → Workflow → LLM) so the prefill trick works,
+    but the ``st.tabs`` widget arg order is what the user sees.
+
+    Note: AppTest's ``.tabs`` property returns *every* ``st.tabs``
+    widget on the page, including the Studio's inner Schema/Compose/
+    History tabs.  We slice the first three (the top-level widget)
+    and assert their labels match.
+    """
+    from streamlit.testing.v1 import AppTest
+    from src.streamlit_app import TAB_LLM, TAB_STUDIO, TAB_WORKFLOW
+
+    at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
+    assert not at.exception, f"entry script raised: {at.exception}"
+    # The top-level tabs widget is the first one rendered.  Inner
+    # Studio tabs (Schema / Compose / History) come after.
+    top_level = [t.label for t in at.tabs[:3]]
+    assert top_level == [TAB_STUDIO, TAB_LLM, TAB_WORKFLOW], (
+        f"visible tab order should be Studio → LLM → Workflow; "
+        f"saw {top_level!r}"
+    )
+
+
+def test_handoff_writes_main_tabs_and_nl_prefill(demo):
+    """``_handoff(model)`` must copy the plan into Studio and switch tabs.
+
+    The four keys written are:
+    - ``model``  — the deep-copied QueryModel (Studio's last_sql depends on it)
+    - ``last_sql`` — the generated SQL (Studio's preview reads this)
+    - ``nl_prefill`` — the LLM's plain-English reply (Studio's ask bar)
+    - ``main_tabs`` — the bound tabs key, set to TAB_STUDIO
+
+    Implementation note: we patch ``st.rerun`` to a no-op inside the
+    script body and restore it at the end.  Without the patch, AppTest
+    sees the snapshot taken *before* the rerun chain settles, and the
+    handoff writes appear to be missing.  The patch keeps the writes
+    in the same script run's session_state so AppTest captures them.
+
+    The restore is critical: AppTest runs the script in the same
+    Python process as the test, so a permanent ``st.rerun = lambda``
+    patch would silently break every subsequent test that uses a
+    Streamlit button.
+    """
+    from streamlit.testing.v1 import AppTest
+    from src.streamlit_app import TAB_STUDIO
+
+    real_model = parse_heuristic(
+        "sum revenue by region", demo["schema"]
+    ).model
+    # Give the model a ``reply`` so ``_handoff``'s nl_prefill write
+    # exercises the LLM-summary branch (not the empty-string fallback).
+    real_model.reply = "Sum revenue grouped by region."
+
+    script = textwrap.dedent(
+        """
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        # Suppress the rerun so the handoff writes settle in this run.
+        # CRITICAL: restore at the end — AppTest shares the streamlit
+        # module with the test process, so an unrestored patch would
+        # silently break every subsequent test.
+        _original_rerun = st.rerun
+        st.rerun = lambda *a, **kw: None
+        try:
+            from src.heuristic_nl import parse_heuristic
+            from src.streamlit_app.demo_dataset import load_demo
+            from src.streamlit_app.pages import llm_assistant
+
+            conn, schema, df, meta = load_demo()
+            real_model = parse_heuristic("sum revenue by region", schema).model
+            real_model.reply = "Sum revenue grouped by region."
+            llm_assistant._handoff(real_model)
+        finally:
+            st.rerun = _original_rerun
+        """
+    )
+    at = AppTest.from_string(script).run()
+    ss = at.session_state.filtered_state
+    assert ss.get("main_tabs") == TAB_STUDIO, (
+        f"_handoff should set main_tabs to {TAB_STUDIO!r}; "
+        f"got {ss.get('main_tabs')!r}"
+    )
+    assert ss.get("nl_prefill") == "Sum revenue grouped by region.", (
+        f"nl_prefill should be the LLM's reply; "
+        f"got {ss.get('nl_prefill')!r}"
+    )
+    assert ss.get("nl_auto_submit") is False, (
+        f"nl_auto_submit should be False (no auto-submit on handoff); "
+        f"got {ss.get('nl_auto_submit')!r}"
+    )
+    last_sql = ss.get("last_sql", "")
+    assert "SUM" in last_sql.upper() and "GROUP BY" in last_sql.upper(), (
+        f"last_sql should contain SUM ... GROUP BY; got {last_sql!r}"
+    )
+    model = ss.get("model")
+    assert model is not None and model.reply == "Sum revenue grouped by region.", (
+        f"model should be the deep-copied LLM plan; "
+        f"got {getattr(model, 'reply', 'MISSING')!r}"
+    )
+
+
+def test_handoff_does_not_call_switch_page(monkeypatch, demo):
+    """``_handoff`` must not invoke ``st.switch_page``.
+
+    Under the tab model the bound ``main_tabs`` key handles tab
+    switching — calling ``st.switch_page`` would blow up (no
+    navigation router exists under ``st.tabs``).  We patch
+    ``streamlit.switch_page`` to raise and assert the call doesn't
+    fire.
+
+    The script also patches ``st.rerun`` to a no-op and restores it.
+    See ``test_handoff_writes_main_tabs_and_nl_prefill`` for why the
+    restore is critical (AppTest shares the streamlit module with
+    the test process).
+    """
+    from src.streamlit_app.pages import llm_assistant
+    import streamlit as st_real
+
+    def _boom(*args, **kwargs):
+        raise AssertionError(
+            "st.switch_page was called from _handoff — under the tab "
+            "model this is wrong; write main_tabs instead."
+        )
+
+    monkeypatch.setattr(st_real, "switch_page", _boom)
+
+    real_model = parse_heuristic(
+        "sum revenue by region", demo["schema"]
+    ).model
+    real_model.reply = "Sum revenue by region."
+
+    from streamlit.testing.v1 import AppTest
+    script = textwrap.dedent(
+        """
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        _original_rerun = st.rerun
+        st.rerun = lambda *a, **kw: None
+        try:
+            from src.heuristic_nl import parse_heuristic
+            from src.streamlit_app.demo_dataset import load_demo
+            from src.streamlit_app.pages import llm_assistant
+
+            conn, schema, df, meta = load_demo()
+            real_model = parse_heuristic("sum revenue by region", schema).model
+            real_model.reply = "Sum revenue by region."
+            llm_assistant._handoff(real_model)
+        finally:
+            st.rerun = _original_rerun
+        """
+    )
+    at = AppTest.from_string(script).run()
+    # If _handoff had called switch_page, the patched _boom would have
+    # raised and AppTest would have surfaced it as an exception.
+    assert not at.exception, f"_handoff raised: {at.exception}"
+
+
+def test_workflow_step3_writes_chip_prefill(demo):
+    """Clicking the Workflow Step 3 button must pre-fill the LLM tab.
+
+    Step 3 of the guided tour writes
+    ``_llm_showcase_chip_prefill`` and ``main_tabs = TAB_LLM`` so the
+    LLM tab's text area picks up the seed question on its next
+    render.  We assert both keys after the click.
+    """
+    from streamlit.testing.v1 import AppTest
+    from src.streamlit_app import TAB_LLM
+    from src.streamlit_app.pages import workflow
+
+    # A small script that loads the demo and renders the workflow tab.
+    # We don't need the other tabs to test this — the Workflow tab is
+    # self-contained.
+    script = textwrap.dedent(
+        f"""
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        from src.streamlit_app.demo_dataset import load_demo
+        from src.streamlit_app.pages import workflow
+        conn, schema, df, meta = load_demo()
+        st.session_state["conn"] = conn
+        st.session_state["schema"] = schema
+        workflow.render()
+        """
+    )
+    at = AppTest.from_string(script).run()
+    assert not at.exception, f"workflow raised on first render: {at.exception}"
+
+    # Click the Step 3 button.  The key is stable: ``wf_step3``.
+    step3 = next(b for b in at.button if b.key == "wf_step3")
+    step3.click().run()
+
+    ss = at.session_state.filtered_state
+    assert ss.get("main_tabs") == TAB_LLM, (
+        f"Step 3 must switch to {TAB_LLM!r}; got {ss.get('main_tabs')!r}"
+    )
+    assert ss.get("_llm_showcase_chip_prefill") == "monthly revenue trend 2024", (
+        f"Step 3 must seed the LLM text area; got "
+        f"{ss.get('_llm_showcase_chip_prefill')!r}"
+    )
+
+
+def test_studio_ask_picks_up_workflow_prefill(demo):
+    """End-to-end: Workflow Step 2 pre-fill must reach the Studio ask bar.
+
+    This is the most important integration test.  It renders the full
+    three-tab app, clicks Workflow Step 2, then asserts:
+    - ``main_tabs`` switched to "Studio"
+    - The Studio's ask-bar widget (``nl_text_input``) is populated
+      with the seed question
+
+    Proves the cross-tab prefill works end-to-end.
+
+    Note: we don't assert on ``nl_prefill``'s presence/absence — that
+    key is *consumed* by ``ask.render()`` via ``st.session_state.pop``
+    which still leaves the key in session_state with an empty-string
+    value.  The visible end-state is the ``nl_text_input`` widget value.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    # Render the full app so all session_state is initialized.
+    at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
+    assert not at.exception, f"first render raised: {at.exception}"
+
+    # Click the Workflow Step 2 button.  The key is stable: ``wf_step2``.
+    step2 = next(b for b in at.button if b.key == "wf_step2")
+    step2.click().run()
+
+    assert not at.exception, f"post-click render raised: {at.exception}"
+
+    ss = at.session_state.filtered_state
+    assert ss.get("main_tabs") == "Studio", (
+        f"Step 2 must switch to Studio; got {ss.get('main_tabs')!r}"
+    )
+    # The ask bar's text_input widget has key="nl_text_input"; the
+    # prefill should be sitting in its session_state slot.
+    assert ss.get("nl_text_input") == "sum revenue by region", (
+        f"Studio's ask bar should be pre-populated with the seed "
+        f"question; got {ss.get('nl_text_input')!r}"
+    )
+
+
+def test_workflow_load_demo_button_disabled_when_loaded(demo):
+    """The Load demo button must be disabled once a connection is present.
+
+    The first click loads the demo and sets ``st.session_state.conn``.
+    On the next render the button is rendered with ``disabled=True``
+    and the caption shows the connected dataset's name.  This test
+    catches the easy-to-miss regression where someone reverts the
+    disabled-branch logic.
+
+    Implementation: a single AppTest instance is used for both the
+    pre-click and post-click renders so they share ``st.session_state``.
+    The script does NOT pre-seed ``ss.conn = None`` — that would
+    overwrite the conn the click handler sets in the rerun.  An
+    AppTest session starts fresh, so ``ss.get("conn")`` is ``None``
+    by default, which is exactly the pre-click state we want.
+    """
+    from streamlit.testing.v1 import AppTest
+    from src.streamlit_app.demo_dataset import DEMO_NAME
+
+    script = textwrap.dedent(
+        f"""
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        from src.streamlit_app.pages import workflow
+        workflow.render()
+        """
+    )
+    at = AppTest.from_string(script).run()
+    load_btn = next(b for b in at.button if b.key == "wf_load_demo")
+    assert not load_btn.disabled, (
+        "Load demo button should be enabled when no connection is loaded"
+    )
+
+    # Click it — the callback calls _load_demo_into_session() and
+    # triggers st.rerun().  On the rerun, conn_loaded is True, so the
+    # disabled branch renders.
+    load_btn.click().run()
+    assert not at.exception, f"load demo raised: {at.exception}"
+
+    # Inspect the post-click button + caption.
+    load_btn2 = next(b for b in at.button if b.key == "wf_load_demo")
+    assert load_btn2.disabled, (
+        "Load demo button should be disabled after a connection is loaded"
+    )
+    captions = [c.value for c in at.caption]
+    assert any(DEMO_NAME in c for c in captions), (
+        f"caption should mention the loaded dataset ({DEMO_NAME!r}); "
+        f"saw {captions!r}"
+    )
+
+
+def test_invalid_main_tabs_value_falls_back(demo):
+    """A garbage ``main_tabs`` value must not crash the entry script.
+
+    Streamlit's ``st.tabs`` silently falls back to the first tab when
+    the bound key's value doesn't match any of the labels.  We assert
+    the entry script renders cleanly and at least one of the three
+    tabs is present.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    # Pre-seed session_state via a tiny wrapper script — AppTest
+    # doesn't let us write to session_state from outside, but we can
+    # pre-populate it inside the test script.
+    script = textwrap.dedent(
+        f"""
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        # Garbage value — Streamlit should silently fall back to tab 0.
+        st.session_state["main_tabs"] = "BogusTab"
+        import streamlit_app
+        """
+    )
+    at = AppTest.from_string(script).run()
+    assert not at.exception, (
+        f"garbage main_tabs should not crash: {at.exception}"
+    )
+    # All three tab labels should still be present in the element tree.
+    labels = [t.label for t in at.tabs]
+    assert "Studio" in labels and "LLM SQL Assistant" in labels and "Workflow" in labels

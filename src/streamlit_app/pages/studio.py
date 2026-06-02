@@ -1,9 +1,9 @@
-"""Query Studio — main page (formerly the single-page app body).
+"""Query Studio — main tab (data + query app).
 
-This is the existing app, moved here so it can be one of multiple pages
-under ``st.navigation``.  Behaviour is identical to the previous
-``src/streamlit_app/app.run()``; ``app.py`` re-exports :func:`render` as
-:func:`run` to keep older import paths working.
+One of three panels in the top-level tabbed app
+(``streamlit_app.py``).  Behaviour is identical to the previous
+single-page body.  Session state is shared with the LLM SQL
+Assistant and Workflow tabs.
 """
 
 from __future__ import annotations
@@ -51,12 +51,6 @@ def _render_statusbar() -> None:
 
 
 def render() -> None:
-    st.set_page_config(
-        page_title="Query Studio · Studio",
-        page_icon="▪",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
     inject_css()
     state.init()
 
@@ -82,14 +76,3 @@ def render() -> None:
                 assistant.render()
 
     _render_statusbar()
-
-
-# ---------------------------------------------------------------------------
-# When ``streamlit_app.py`` runs us via ``st.navigation`` / ``page.run()``,
-# the page module is exec'd as ``__main__`` and the body of ``render()``
-# is what paints the page.  ``app.py`` re-imports this module — Python sets
-# ``__name__`` to its dotted path, so the guard below skips the call and
-# the import stays side-effect-free.
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    render()
