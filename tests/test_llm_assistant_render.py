@@ -860,3 +860,67 @@ def test_invalid_main_tabs_value_falls_back(demo):
     # All three tab labels should still be present in the element tree.
     labels = [t.label for t in at.tabs]
     assert "Studio" in labels and "LLM SQL Assistant" in labels and "Workflow" in labels
+
+
+def test_entry_script_self_fixes_sys_path():
+    """``streamlit_app.py`` must put the project root on ``sys.path``.
+
+    Local ``streamlit run`` adds the script's directory to
+    ``sys.path[0]``, but Streamlit Cloud's runtime doesn't always
+    do this — so the entry script does it explicitly.  This test
+    simulates the Streamlit Cloud condition (CWD and ``sys.path``
+    don't include the project root) and asserts the import still
+    succeeds.
+
+    Why this matters: a regression that removes the explicit
+    ``sys.path`` fix would pass every other test (which always run
+    with the project root on the path) but break the Streamlit
+    Cloud deploy with ``ModuleNotFoundError: No module named
+    'src'``.
+    """
+    import subprocess
+    import sys
+    import textwrap
+    from pathlib import Path
+
+    script_path = Path(__file__).resolve().parent.parent / "streamlit_app.py"
+    assert script_path.exists(), f"entry script not found at {script_path}"
+    project_root = str(script_path.parent).replace("\\", "/")
+
+    # Child Python: strip project root from sys.path, change to a
+    # foreign CWD, then exec the entry script.  Streamlit is stubbed
+    # to absorb the page-config and tabs calls — we only care that
+    # the imports resolved.
+    child_code = textwrap.dedent(
+        f"""
+        import sys
+        sys.path = [p for p in sys.path if "{project_root}" not in p]
+        import os
+        os.chdir({str(Path.home())!r})
+        import streamlit as st
+        st.set_page_config = lambda *a, **kw: None
+        with open({str(script_path)!r}) as f:
+            src = f.read()
+        compiled = compile(src, {str(script_path)!r}, "exec")
+        try:
+            exec(compiled, {{"__name__": "__main__", "__file__": {str(script_path)!r}}})
+            print("IMPORT_OK")
+        except ModuleNotFoundError as exc:
+            print(f"MODULE_NOT_FOUND: {{exc}}")
+        except ImportError as exc:
+            print(f"IMPORT_ERROR: {{exc}}")
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", child_code],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert "IMPORT_OK" in result.stdout, (
+        f"entry script's sys.path fix failed when run from a foreign "
+        f"CWD. stdout: {result.stdout!r}, stderr: {result.stderr!r}. "
+        f"This means Streamlit Cloud would crash with "
+        f"ModuleNotFoundError on first import."
+    )

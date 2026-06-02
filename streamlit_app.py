@@ -26,6 +26,16 @@ out of sync.
 
 from __future__ import annotations
 
+# Ensure the project root is on sys.path so ``import src.streamlit_app``
+# works under Streamlit Cloud, where the runtime's CWD and ``sys.path``
+# don't always match the script's directory.  Local ``streamlit run``
+# already does this; the explicit insert is a no-op there.
+import sys
+from pathlib import Path as _Path
+_PROJECT_ROOT = _Path(__file__).resolve().parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import streamlit as st
 
 from src.streamlit_app import TAB_LLM, TAB_STUDIO, TAB_WORKFLOW
