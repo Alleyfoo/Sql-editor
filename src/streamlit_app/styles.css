@@ -1445,3 +1445,46 @@ hr.dashed-sep {
 .st-key-chat_panel > div {
   background: transparent !important;
 }
+
+/* ── LLM SQL Assistant page ──────────────────────────────────────────── */
+.llm-assistant-safety {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: 12px 14px;
+  margin: 4px 0 8px 0;
+}
+.llm-assistant-safety .safety-heading {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.llm-assistant-safety .safety-pillar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  margin: 0 6px 6px 0;
+  border-radius: 999px;
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.llm-assistant-safety .pillar-icon {
+  font-size: 12px;
+}
+.llm-assistant-safety .pillar-text {
+  white-space: nowrap;
+}
+
+/* Side-by-side comparison panels */
+.st-key-llm_heuristic_panel,
+.st-key-llm_assistant_panel {
+  background: var(--paper) !important;
+  border-radius: var(--r-3) !important;
+  padding: 16px !important;
+}
