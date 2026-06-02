@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sql-editor"
+version = "0.7.0"
+description = "Streamlit SQL editor with NL → SQL translation, heuristic vs LLM comparison, and guided workflow."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Perttu Leinonen" }]
+# Runtime deps live in requirements.txt — Streamlit Cloud installs
+# those too.  We only declare the package metadata here.
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
