@@ -38,7 +38,23 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 
-from src.streamlit_app import TAB_LLM, TAB_STUDIO, TAB_WORKFLOW
+try:
+    from src.streamlit_app import TAB_LLM, TAB_STUDIO, TAB_WORKFLOW
+except ImportError as _exc:
+    # Streamlit Cloud's error overlay redacts the actual exception
+    # message ("to prevent data leaks").  Re-raise with the *real*
+    # error prepended so it shows up in the Streamlit Cloud logs
+    # (which are unredacted).  Format: DIAG: <what we tried> ...
+    # failed: <original error> at <path>.
+    raise ImportError(
+        f"DIAG: from src.streamlit_app import TAB_LLM, TAB_STUDIO, "
+        f"TAB_WORKFLOW failed with: {_exc!r}. "
+        f"sys.path[0:3]={sys.path[0:3]!r}, "
+        f"_PROJECT_ROOT={str(_PROJECT_ROOT)!r}, "
+        f"src exists={(_PROJECT_ROOT / 'src').is_dir()!r}, "
+        f"src/streamlit_app/__init__.py exists="
+        f"{(_PROJECT_ROOT / 'src' / 'streamlit_app' / '__init__.py').is_file()!r}"
+    ) from _exc
 
 # Page config is set ONCE here.  The page modules no longer call it.
 st.set_page_config(
