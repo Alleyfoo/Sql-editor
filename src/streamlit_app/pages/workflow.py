@@ -73,10 +73,11 @@ def render() -> None:
     st.markdown(
         "<h2 style='margin:8px 0 4px 0;'>Workflow — guided tour</h2>"
         "<p style='color:#57514A;font-size:13px;margin:0 0 18px 0;'>"
-        "A four-step walkthrough that takes you from an empty session "
-        "to a query plan produced by the LLM and run against the demo "
-        "dataset.  Every button does one thing; you can leave the tour "
-        "at any time and come back to it."
+        "Start with the model-free path: load the demo, try an offline "
+        "example, inspect the generated SQL, and run it.  If Ollama or "
+        "an API key is available, the LLM comparison step shows what a "
+        "model adds; otherwise the first two steps are still a complete "
+        "working demo."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -120,13 +121,13 @@ def render() -> None:
     st.markdown("---")
 
     # ---- Step 2 ---------------------------------------------------------
-    st.markdown("### 2. Try the heuristic on Studio")
+    st.markdown("### 2. Try a model-free example")
     st.markdown(
         "The Studio's ask bar uses the offline heuristic for "
         "unambiguous phrasings.  Click below to seed the ask bar with "
-        f"“{_STEP2_QUESTION}” and switch to the Studio tab — press "
-        "**Ask** to see the heuristic's plan appear instantly (no LLM "
-        "call)."
+        f"“{_STEP2_QUESTION}” and switch to the Studio tab.  Press "
+        "**Ask**, inspect the SQL preview, then press **Run query**.  "
+        "This does not require Ollama or an API key."
     )
     if st.button(
         f"Open Studio with “{_STEP2_QUESTION}”",
@@ -142,12 +143,12 @@ def render() -> None:
     st.markdown("---")
 
     # ---- Step 3 ---------------------------------------------------------
-    st.markdown("### 3. Compare with the LLM")
+    st.markdown("### 3. Optional: compare with an LLM")
     st.markdown(
-        "Now run the same kind of question through the LLM tab.  The "
-        "chip-prefill pattern is the same one the LLM tab's example "
-        "chips use: we write a private key, the LLM tab pops it on its "
-        "next render, and the text area shows the seed question."
+        "If a model is connected, run the same kind of question through "
+        "the LLM tab and compare it with the heuristic.  If the LLM is "
+        "offline, the tab still shows the heuristic result and explains "
+        "what to connect before pressing **Run comparison**."
     )
     if st.button(
         f"Open LLM tab with “{_STEP3_QUESTION}”",

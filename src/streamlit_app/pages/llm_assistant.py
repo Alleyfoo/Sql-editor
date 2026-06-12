@@ -109,6 +109,14 @@ def _render_safety_banner() -> None:
     )
 
 
+def _render_model_access_note() -> None:
+    st.info(
+        "No Ollama or API key? You can still use this page: type an example "
+        "and read the Heuristic column on the left. Only **Run comparison** "
+        "needs a connected model."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Schema loading
 # ---------------------------------------------------------------------------
@@ -783,6 +791,7 @@ def render() -> None:
         f'<div style="margin:0 0 8px 0;">{_llm_status_pill_html()}</div>',
         unsafe_allow_html=True,
     )
+    _render_model_access_note()
 
     # ---- Input row ------------------------------------------------------
     # Chip clicks set ``_chip_prefill``; we apply it to the text-area

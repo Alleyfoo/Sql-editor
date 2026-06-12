@@ -1,8 +1,10 @@
 # Query Studio
 
-A local web app for querying CSV data with natural language. Ask questions in plain
-English, inspect the generated SQL before it runs, and get structured insight cards
-plus LLM-written narrative — all running on your machine with no data leaving it.
+A local web app for querying CSV data with natural language. You can use the demo,
+quick queries, visual composer, and offline heuristic examples without installing
+Ollama or adding an API key. If you connect local Ollama, the app can also
+generate structured query plans and narrative analysis without sending data to
+an external service; cloud providers are optional for shareable datasets.
 
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange)
 
@@ -26,16 +28,58 @@ executed after you've seen it.
 
 ## Quick start
 
-### 1. Install Ollama
+### No Ollama or API key? Start here.
 
-Download from **[ollama.com](https://ollama.com/download)** — available for
-Windows, Mac, and Linux. Run the installer, then verify:
+You can still try the core workflow:
+
+1. Install the Python dependencies.
+2. Run the Streamlit app.
+3. Click **Load demo dataset**.
+4. Try the quick-query buttons or ask one of these heuristic examples:
+   - `sum revenue by region`
+   - `top 10 products by revenue`
+   - `count rows by status`
+   - `show region and country`
+5. Inspect the generated SQL, then click **Run query**.
+
+This path is fully local and model-free. The app uses deterministic Python rules
+for simple natural-language questions and pre-built quick queries for richer demos.
+
+Use Ollama or a cloud API key only when you want the LLM features:
+
+- more flexible natural-language parsing,
+- **Ask + Analyze** narrative insight reports,
+- heuristic-vs-LLM comparison on the **LLM SQL Assistant** tab.
+
+### 1. Install Python dependencies
+
+Requires **Python 3.10+**.
+
+```bash
+pip install -r requirements.txt
+```
+
+Dependencies: `streamlit`, `pandas`, `altair`, `pyyaml`, `openpyxl`, `pdfplumber`.
+
+### 2. Run
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Opens at **http://localhost:8501**. Click **Load demo dataset** to try it
+immediately without uploading a file.
+
+### 3. Optional: install Ollama for LLM features
+
+Download from **[ollama.com](https://ollama.com/download)**. Run the installer,
+then verify:
 
 ```bash
 ollama --version
 ```
 
-### 2. Pull a model
+### 4. Optional: pull a model
 
 For SQL generation, Qwen models work well:
 
@@ -50,18 +94,9 @@ ollama pull qwen2.5:14b
 Any model that follows JSON-format instructions will work. Start with
 `qwen2.5-coder:7b` if you're unsure.
 
-### 3. Install Python dependencies
-
-Requires **Python 3.10+**.
-
-```bash
-pip install -r requirements.txt
-```
-
-Dependencies: `streamlit`, `pandas`, `altair`, `pyyaml`, `openpyxl`, `pdfplumber`.
 No GPU required — Ollama runs CPU inference by default.
 
-### 4. Configure the model
+### 5. Optional: configure the model
 
 Edit `config.yaml`:
 
@@ -79,15 +114,6 @@ Or set environment variables (these override `config.yaml`):
 | `OLLAMA_HOST`    | `http://localhost:11434` |
 | `OLLAMA_MODEL`   | `gemma3`                 |
 | `OLLAMA_TIMEOUT` | `60` (seconds)           |
-
-### 5. Run
-
-```bash
-streamlit run streamlit_app.py
-```
-
-Opens at **http://localhost:8501**. Click **Load demo dataset** to try it
-immediately without uploading a file.
 
 ---
 
@@ -141,8 +167,10 @@ This tool will never modify your data. Six layers enforce this:
    `DETACH`, `PRAGMA`, `REPLACE`, `TRUNCATE`, `EXEC`, `EXECUTE`, `GRANT`,
    `REVOKE`.
 
-**No data leaves your machine.** The LLM runs locally via Ollama — nothing is
-sent to any external service.
+**Local mode keeps data on your machine.** With Ollama, prompts are sent only to
+your local Ollama server. If you choose Gemini, Groq, or another remote provider,
+the app sends the prompt/schema context to that provider; use those modes only
+with data you are allowed to share.
 
 ---
 
