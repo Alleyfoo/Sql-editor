@@ -58,7 +58,7 @@ Requires **Python 3.10+**.
 pip install -r requirements.txt
 ```
 
-Dependencies: `streamlit`, `pandas`, `altair`, `pyyaml`.
+Dependencies: `streamlit`, `pandas`, `altair`, `pyyaml`, `openpyxl`, `pdfplumber`.
 No GPU required — Ollama runs CPU inference by default.
 
 ### 4. Configure the model

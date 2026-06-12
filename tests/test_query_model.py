@@ -7,6 +7,8 @@ import pytest
 from src.query_model import (
     Aggregation,
     Filter,
+    JOIN_TYPES,
+    Join,
     QueryModel,
     _assert_select_only,
     quote_ident,
@@ -295,4 +297,46 @@ def test_date_bucket_day_with_aggregation():
         'FROM "data" '
         'GROUP BY substr("time", 1, 10) '
         'ORDER BY "time_day" ASC'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 5b — JOIN clauses
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("join_type", JOIN_TYPES)
+def test_join_renders_supported_join_types(join_type):
+    join = Join(
+        left_table="products",
+        left_col="product_id",
+        right_table="received_inventory",
+        right_col="product_id",
+        join_type=join_type,
+    )
+    assert join.to_sql() == (
+        f'{join_type} JOIN "received_inventory" '
+        'ON "products"."product_id" = "received_inventory"."product_id"'
+    )
+
+
+def test_query_model_emits_join_type_in_full_sql():
+    m = QueryModel(
+        table="products",
+        selected_columns=["products.product_name", "suppliers.supplier_name"],
+        joins=[
+            Join(
+                left_table="products",
+                left_col="supplier_id",
+                right_table="suppliers",
+                right_col="supplier_id",
+                join_type="LEFT",
+            )
+        ],
+    )
+    assert m.to_sql() == (
+        'SELECT "products"."product_name", "suppliers"."supplier_name" '
+        'FROM "products" '
+        'LEFT JOIN "suppliers" '
+        'ON "products"."supplier_id" = "suppliers"."supplier_id"'
     )

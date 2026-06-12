@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Dict, Optional
 
 import pandas as pd
@@ -15,6 +16,40 @@ def _expr_is_date(expr: str) -> Optional[str]:
     return None
 
 
+_DATE_VALUE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ].*)?$")
+
+
+def _is_date_like_value(value: object) -> bool:
+    return isinstance(value, str) and bool(_DATE_VALUE_RE.match(value.strip()))
+
+
+def _compare_ordered(series: pd.Series, op: str, value: object) -> pd.Series:
+    if _is_date_like_value(value):
+        parsed_col = pd.to_datetime(series, errors="coerce", utc=True)
+        parsed_val = pd.to_datetime(value, errors="coerce", utc=True)
+        if pd.notna(parsed_val):
+            if op == ">":
+                return parsed_col > parsed_val
+            if op == ">=":
+                return parsed_col >= parsed_val
+            if op == "<":
+                return parsed_col < parsed_val
+            if op == "<=":
+                return parsed_col <= parsed_val
+
+    metric = pd.to_numeric(series, errors="coerce")
+    numeric_value = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if op == ">":
+        return metric > numeric_value
+    if op == ">=":
+        return metric >= numeric_value
+    if op == "<":
+        return metric < numeric_value
+    if op == "<=":
+        return metric <= numeric_value
+    raise ValueError(f"unsupported ordered comparison op: {op!r}")
+
+
 def _apply_filters(df: pd.DataFrame, plan: LogicalPlan) -> pd.DataFrame:
     out = df.copy()
     for f in plan.filters:
@@ -26,19 +61,13 @@ def _apply_filters(df: pd.DataFrame, plan: LogicalPlan) -> pd.DataFrame:
         elif op == "!=":
             out = out[out[col] != val]
         elif op == ">":
-            out = out[pd.to_numeric(out[col], errors="coerce") > pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0]]
+            out = out[_compare_ordered(out[col], op, val)]
         elif op == ">=":
-            # Supports either numeric or ISO-like dates.
-            parsed_col = pd.to_datetime(out[col], errors="coerce")
-            parsed_val = pd.to_datetime(val, errors="coerce")
-            if pd.notna(parsed_val):
-                out = out[parsed_col >= parsed_val]
-            else:
-                out = out[pd.to_numeric(out[col], errors="coerce") >= pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0]]
+            out = out[_compare_ordered(out[col], op, val)]
         elif op == "<":
-            out = out[pd.to_numeric(out[col], errors="coerce") < pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0]]
+            out = out[_compare_ordered(out[col], op, val)]
         elif op == "<=":
-            out = out[pd.to_numeric(out[col], errors="coerce") <= pd.to_numeric(pd.Series([val]), errors="coerce").iloc[0]]
+            out = out[_compare_ordered(out[col], op, val)]
         elif op == "BETWEEN":
             if not isinstance(val, (list, tuple)) or len(val) != 2:
                 raise ValueError("BETWEEN filter requires 2 values")
@@ -188,4 +217,3 @@ class PythonAnalyticsExecutor:
             bytes_fetched=int(post.memory_usage(index=False, deep=True).sum()),
             backend=self.name,
         )
-

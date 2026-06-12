@@ -287,6 +287,15 @@ def _match_column(token: str, schema: Dict[str, str]) -> Optional[str]:
     return None
 
 
+def _is_boolean_indicator_column(column: str) -> bool:
+    """Return True for common 0/1 flag column names."""
+    name = column.lower()
+    return (
+        name.startswith(("is_", "has_", "was_", "can_"))
+        or name.endswith(("_flag", "_pass", "_fail", "_active", "_enabled"))
+    )
+
+
 def _match_columns_in_phrase(
     tokens: List[str], schema: Dict[str, str], indices: range
 ) -> List[Tuple[int, str]]:
@@ -571,13 +580,12 @@ def _detect_aggregations(tokens: List[str], b: _Builder) -> None:
                 break
         if target_col is None:
             continue
-        if (
-            target_col == "*"
-            or b.schema.get(target_col) != "numeric"
-            and func != "COUNT"
-        ):
-            # SUM/AVG/MIN/MAX require a numeric column; reject otherwise
-            # (e.g. "average region" makes no sense).
+        can_aggregate = b.schema.get(target_col) == "numeric" or (
+            func == "SUM" and _is_boolean_indicator_column(target_col)
+        )
+        if target_col == "*" or (func != "COUNT" and not can_aggregate):
+            # SUM accepts numeric columns and common 0/1 indicator flags;
+            # AVG/MIN/MAX still require numeric columns.
             continue
 
         alias = f"{func.lower()}_{target_col}"

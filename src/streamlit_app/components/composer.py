@@ -177,8 +177,12 @@ def _join_section(
         to_remove = None
         table_names = list(tables.keys())
 
+        join_changed = False
         for i, row in enumerate(join_rows):
-            c1, c2, c3, c4, c5, c6 = st.columns([2, 2, 1, 2, 2, 0.5], gap="small")
+            before = dict(row)
+            c1, c2, c3, c4, c5, c6, c7 = st.columns(
+                [1.6, 1.8, 1.4, 0.35, 1.6, 1.8, 0.5], gap="small"
+            )
 
             with c1:
                 left_table = st.selectbox(
@@ -202,12 +206,23 @@ def _join_section(
                 row["left_col"] = left_col
 
             with c3:
+                join_type = st.selectbox(
+                    "join_type",
+                    list(JOIN_TYPES),
+                    index=list(JOIN_TYPES).index(row.get("join_type", "INNER"))
+                    if row.get("join_type", "INNER") in JOIN_TYPES else 0,
+                    key=f"join_type_{i}",
+                    label_visibility="collapsed",
+                )
+                row["join_type"] = join_type
+
+            with c4:
                 st.markdown(
                     '<div style="text-align:center;padding:8px 0;font-size:14px;color:var(--ink-3);">=</div>',
                     unsafe_allow_html=True,
                 )
 
-            with c4:
+            with c5:
                 right_table = st.selectbox(
                     "right_table",
                     table_names,
@@ -217,7 +232,7 @@ def _join_section(
                 )
                 row["right_table"] = right_table
 
-            with c5:
+            with c6:
                 right_cols = list(tables[right_table].keys())
                 right_col = st.selectbox(
                     "right_col",
@@ -228,9 +243,18 @@ def _join_section(
                 )
                 row["right_col"] = right_col
 
-            with c6:
+            with c7:
                 if st.button("×", key=f"join_rm_{i}"):
                     to_remove = i
+
+            if row != before:
+                join_changed = True
+
+        if join_changed:
+            st.session_state.join_rows = join_rows
+            st.session_state.pop("_raw_sql_lock", None)
+            _refresh_sql(model, from_user=True)
+            st.rerun()
 
         if to_remove is not None:
             join_rows.pop(to_remove)
