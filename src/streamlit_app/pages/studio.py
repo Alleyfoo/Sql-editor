@@ -68,7 +68,7 @@ def render() -> None:
         with st.container(key="asst_rail"):
             with st.container(border=True, key="chat_panel"):
                 st.markdown(
-                    '<div class="chat-panel-header">💬 Assistant</div>',
+                    '<div class="chat-panel-header">Assistant</div>',
                     unsafe_allow_html=True,
                 )
                 ask.render()

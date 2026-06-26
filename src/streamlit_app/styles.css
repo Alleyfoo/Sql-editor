@@ -360,6 +360,9 @@ button, input, select, textarea {
   border-color: #D6D0C8 !important;
   color: #57514A !important;
   font-family: "IBM Plex Mono", monospace !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 [class*="st-key-col_chip_"] button:hover {
   background: #EDE9E0 !important;

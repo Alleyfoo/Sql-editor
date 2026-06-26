@@ -91,7 +91,7 @@ def render() -> None:
         )
     
     with head_cols[2]:
-        with st.popover("📂 Open CSV", use_container_width=True):
+        with st.popover("Open CSV", use_container_width=True):
             uploaded = st.file_uploader(
                 "Choose a CSV file",
                 type=["csv"],
@@ -132,7 +132,7 @@ def render() -> None:
                 _handle_supply_chain_load()
     
     with head_cols[3]:
-        with st.popover("⚙ LLM", use_container_width=True):
+        with st.popover("LLM", use_container_width=True):
             _render_model_selector()
 
 

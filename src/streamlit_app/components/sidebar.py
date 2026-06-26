@@ -97,7 +97,7 @@ def _render_composer_summary() -> None:
             unsafe_allow_html=True,
         )
 
-    if st.button("⚙️ Open Composer", key="sidebar_open_composer", width="stretch"):
+    if st.button("Open Composer", key="sidebar_open_composer", width="stretch"):
         _composer_dialog()
 
 
@@ -129,7 +129,7 @@ def render() -> None:
         st.divider()
 
         # Tab system for Schema/Compose/History
-        schema_tab, compose_tab, history_tab = st.tabs(["📋 Schema", "🔧 Compose", "⏱ History"])
+        schema_tab, compose_tab, history_tab = st.tabs(["Schema", "Compose", "History"])
 
         with schema_tab:
             tables: Dict[str, Dict[str, str]] = st.session_state.get("tables", {})
@@ -219,7 +219,7 @@ def _render_multi_table_schema(tables: Dict[str, Dict[str, str]], relationships:
             joinable_indicator = ""
             if col in table_joinable:
                 joinable_indicator = (
-                    '<span class="joinable-chip" title="Joinable column">🔗</span>'
+                    '<span class="joinable-chip" title="Joinable column">⋈</span>'
                 )
 
             st.markdown(

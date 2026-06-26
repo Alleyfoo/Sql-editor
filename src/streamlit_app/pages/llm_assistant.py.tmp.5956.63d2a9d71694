@@ -90,9 +90,10 @@ _SAFETY_PILLARS: List[Tuple[str, str]] = [
 def _render_safety_banner() -> None:
     pills = "".join(
         f'<span class="safety-pillar" title="{title}">'
+        f'<span class="pillar-icon">{icon}</span>'
         f'<span class="pillar-text">{title}</span>'
         f"</span>"
-        for _, title in _SAFETY_PILLARS
+        for icon, title in _SAFETY_PILLARS
     )
     st.markdown(
         '<div class="llm-assistant-safety">'
@@ -293,7 +294,7 @@ def _render_llm_column(
         "gemini": "Gemini",
     }.get(cfg.provider, cfg.provider)
     st.markdown(
-        f"##### LLM ({provider_label} · `{cfg.model}`)"
+        f"##### 🧠 LLM ({provider_label} · `{cfg.model}`)"
     )
     st.caption("Calls the configured model only when you press *Run comparison*.")
 
@@ -481,7 +482,7 @@ def _append_to_log(
 
 def _render_log() -> None:
     log = st.session_state.get(LOG_KEY, [])
-    header = f"Comparison log ({len(log)}/{LOG_MAX})"
+    header = f"📒 Comparison log ({len(log)}/{LOG_MAX})"
     with st.expander(header, expanded=False):
         if not log:
             st.caption(
@@ -770,6 +771,7 @@ def render() -> None:
 
     st.markdown(
         '<div class="llm-hero">'
+        '<div class="llm-hero-icon">🧠</div>'
         '<div class="llm-hero-text">'
         '<div class="llm-hero-title">LLM SQL Assistant</div>'
         '<div class="llm-hero-sub">'

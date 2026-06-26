@@ -90,9 +90,10 @@ _SAFETY_PILLARS: List[Tuple[str, str]] = [
 def _render_safety_banner() -> None:
     pills = "".join(
         f'<span class="safety-pillar" title="{title}">'
+        f'<span class="pillar-icon">{icon}</span>'
         f'<span class="pillar-text">{title}</span>'
         f"</span>"
-        for _, title in _SAFETY_PILLARS
+        for icon, title in _SAFETY_PILLARS
     )
     st.markdown(
         '<div class="llm-assistant-safety">'

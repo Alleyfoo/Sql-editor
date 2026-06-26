@@ -95,7 +95,7 @@ def render() -> None:
 def _render_multitable_preview(tables: dict, conn) -> None:
     """Show one tab per table for multi-table datasets."""
     table_names = list(tables.keys())
-    tabs = st.tabs([f"📋 {name}" for name in table_names])
+    tabs = st.tabs(table_names)
     for tab, table_name in zip(tabs, table_names):
         with tab:
             try:

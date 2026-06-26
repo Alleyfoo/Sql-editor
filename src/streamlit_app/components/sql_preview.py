@@ -117,7 +117,7 @@ def _explain_from_model(model, sql: str) -> None:
     dataset_meta = st.session_state.get("dataset_meta", {})
     row_count = dataset_meta.get("rows")
     row_hint = f" ({row_count:,} rows)" if row_count else ""
-    steps.append(("📂 Source", f"Reading from **`{model.table}`**{row_hint}."))
+    steps.append(("Source", f"Reading from **`{model.table}`**{row_hint}."))
 
     # ── Filters (WHERE) ──────────────────────────────────────────────────────
     if model.filters:
@@ -133,7 +133,7 @@ def _explain_from_model(model, sql: str) -> None:
             else:
                 parts.append(f"`{f.column}` {op} `{f.value}`")
         joined = f" **{model.filters[1].logical}** ".join(parts) if len(parts) > 1 else parts[0]
-        steps.append(("🔍 Filter", f"Keep only rows where {joined}."))
+        steps.append(("Filter", f"Keep only rows where {joined}."))
 
     # ── Aggregations + GROUP BY ──────────────────────────────────────────────
     if model.aggregations:
@@ -158,7 +158,7 @@ def _explain_from_model(model, sql: str) -> None:
         steps.append(("∑ Aggregate", agg_desc))
 
     elif model.group_by:
-        steps.append(("⬡ Group", f"Group rows by **`{'`, `'.join(model.group_by)}`**."))
+        steps.append(("Group", f"Group rows by **`{'`, `'.join(model.group_by)}`**."))
 
     # ── Selected columns ─────────────────────────────────────────────────────
     if model.selected_columns:
@@ -170,7 +170,7 @@ def _explain_from_model(model, sql: str) -> None:
             )
         ]
         if non_grouped:
-            steps.append(("📋 Columns", f"Return **`{'`, `'.join(non_grouped)}`**."))
+            steps.append(("Columns", f"Return **`{'`, `'.join(non_grouped)}`**."))
 
     # ── HAVING ───────────────────────────────────────────────────────────────
     if model.having:

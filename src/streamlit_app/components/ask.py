@@ -57,7 +57,7 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-        col_input, col_ask, col_analyze = st.columns([3, 1, 1.5])
+        col_input, col_ask, col_analyze = st.columns([3, 1, 1])
         with col_input:
             text = st.text_input(
                 "ask",
@@ -79,7 +79,7 @@ def render() -> None:
             )
         with col_analyze:
             analyze_clicked = st.button(
-                "Ask + Analyze",
+                "Analyze",
                 width='stretch',
                 type="primary",
                 disabled=not has_data,
