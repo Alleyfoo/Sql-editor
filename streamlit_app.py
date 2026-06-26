@@ -7,7 +7,7 @@ script and share ``st.session_state``.  Cross-tab handoff is a
 ``st.tabs`` widget) — no ``st.switch_page`` is needed.
 
 Visible tab order (left → right):
-  Studio · LLM SQL Assistant · Workflow
+  Workflow · Studio · LLM SQL Assistant
 
 Body-execution order:
   Studio → Workflow → LLM SQL Assistant
@@ -69,8 +69,11 @@ if "main_tabs" not in st.session_state:
     st.session_state["main_tabs"] = TAB_WORKFLOW
 
 # Visible order: Workflow, Studio, LLM SQL Assistant.
+# key="main_tabs" binds the active tab to session state — Workflow's
+# buttons write this key to switch tabs programmatically.
 tab_workflow, tab_studio, tab_llm = st.tabs(
-    [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM]
+    [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM],
+    key="main_tabs",
 )
 
 # Body order: Studio (1st), Workflow (2nd — writes prefill keys),
