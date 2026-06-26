@@ -72,9 +72,9 @@ def render() -> None:
     with head_cols[0]:
         st.markdown(
             '<div class="brand-strip">'
-            '<span class="brand-mark">▣</span>'
+            '<span class="brand-mark">◈</span>'
             '<span class="brand-name">Query Studio</span>'
-            '<span class="brand-tag">alpha</span>'
+            '<span class="brand-tag">demo</span>'
             '</div>',
             unsafe_allow_html=True,
         )

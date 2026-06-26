@@ -770,12 +770,17 @@ def render() -> None:
     _render_safety_banner()
 
     st.markdown(
-        "<h2 style='margin:8px 0 4px 0;'>LLM SQL Assistant</h2>"
-        "<p style='color:#57514A;font-size:13px;margin:0 0 18px 0;'>"
-        "Ask in plain English — see what the offline heuristic parses "
-        "instantly, then run the same question through the LLM and "
-        "compare the two query plans. Neither path executes SQL on this page."
-        "</p>",
+        '<div class="llm-hero">'
+        '<div class="llm-hero-icon">🧠</div>'
+        '<div class="llm-hero-text">'
+        '<div class="llm-hero-title">LLM SQL Assistant</div>'
+        '<div class="llm-hero-sub">'
+        "Ask in plain English — the offline heuristic runs instantly, "
+        "the LLM runs on demand. Compare both query plans; "
+        "neither path executes SQL here."
+        "</div>"
+        "</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
 

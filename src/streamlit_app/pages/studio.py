@@ -41,7 +41,7 @@ def _render_statusbar() -> None:
           <span>route: <strong>{route}</strong></span>
           <span>history: <strong>{hist_path}</strong></span>
           <div class="sb-right">
-            <span>v0.7 · Phase 5</span>
+            <span>Query Studio · demo</span>
             <span>built with Streamlit</span>
           </div>
         </div>
@@ -62,7 +62,6 @@ def render() -> None:
     with center_col:
         schema_strip.render()
         results.render()
-        st.markdown("---")
         sql_preview.render()
 
     with chat_col:

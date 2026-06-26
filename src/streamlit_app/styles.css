@@ -771,12 +771,122 @@ button, input, select, textarea {
 
 /* ── Tabs */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
+  gap: 0;
+  border-bottom: 2px solid var(--line);
+  background: transparent;
 }
 [data-testid="stTabs"] [data-baseweb="tab"] {
   font-size: 13px !important;
   font-family: "IBM Plex Sans", sans-serif !important;
+  font-weight: 500 !important;
+  color: var(--ink-3) !important;
+  padding: 8px 20px !important;
+  border-radius: 0 !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -2px !important;
+  transition: color 0.12s, border-color 0.12s !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab"]:hover {
+  color: var(--ink) !important;
+  background: rgba(0,0,0,0.02) !important;
+}
+[data-testid="stTabs"] [aria-selected="true"][data-baseweb="tab"] {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+
+/* ── Workflow step cards ────────────────────────────────────────────────── */
+.wf-step {
+  display: flex;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  margin-bottom: 10px;
+  align-items: flex-start;
+}
+.wf-step.done {
+  background: var(--paper);
+  border-color: var(--line-2);
+}
+.wf-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.wf-step.done .wf-step-num {
+  background: var(--good);
+}
+.wf-step-body { flex: 1; min-width: 0; }
+.wf-step-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.wf-step.done .wf-step-title {
+  color: var(--ink-2);
+}
+.wf-step-desc {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.wf-step.done .wf-step-desc { color: var(--ink-3); }
+.wf-step-optional {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  background: var(--line-2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+/* ── LLM tab hero strip ─────────────────────────────────────────────────── */
+.llm-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--ink);
+  border-radius: var(--r-3);
+  margin-bottom: 14px;
+}
+.llm-hero-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.llm-hero-text {}
+.llm-hero-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--paper);
+  margin-bottom: 3px;
+}
+.llm-hero-sub {
+  font-size: 12px;
+  color: rgba(232,226,211,0.65);
+  font-family: "IBM Plex Mono", monospace;
+  line-height: 1.4;
 }
 
 /* (type-chip classes moved to Schema section below) */
@@ -1147,27 +1257,7 @@ button, input, select, textarea {
   color: var(--ink-2);
 }
 
-/* ── Status bar ─────────────────────────────────────────────────────────── */
-.app-statusbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 6px 16px;
-  background: var(--paper);
-  border-top: 1px solid var(--line);
-  font-size: 11px;
-  color: var(--ink-3);
-  font-family: "IBM Plex Mono", monospace;
-  margin-top: 24px;
-  border-radius: var(--r-2);
-}
-.app-statusbar .dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-  flex-shrink: 0;
-}
-.app-statusbar .sb-right { margin-left: auto; display: flex; gap: 16px; }
+/* ── Status bar (duplicate removed — canonical definition above) ─────────── */
 .app-statusbar strong { color: var(--ink-2); font-weight: 500; }
 
 /* ── Assistant section ──────────────────────────────────────────────────── */

@@ -67,17 +67,38 @@ def _load_demo_into_session() -> None:
     state.reset_query()
 
 
+def _step_card(
+    num: int,
+    title: str,
+    desc: str,
+    done: bool = False,
+    optional: bool = False,
+) -> None:
+    done_cls = " done" if done else ""
+    optional_badge = (
+        '<span class="wf-step-optional">optional</span>' if optional else ""
+    )
+    num_content = "✓" if done else str(num)
+    st.markdown(
+        f'<div class="wf-step{done_cls}">'
+        f'<div class="wf-step-num">{num_content}</div>'
+        f'<div class="wf-step-body">'
+        f'<div class="wf-step-title">{title}</div>'
+        f'{optional_badge}'
+        f'<div class="wf-step-desc">{desc}</div>'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render() -> None:
     state.init()
 
     st.markdown(
-        "<h2 style='margin:8px 0 4px 0;'>Workflow — guided tour</h2>"
-        "<p style='color:#57514A;font-size:13px;margin:0 0 18px 0;'>"
-        "Start with the model-free path: load the demo, try an offline "
-        "example, inspect the generated SQL, and run it.  If Ollama or "
-        "an API key is available, the LLM comparison step shows what a "
-        "model adds; otherwise the first two steps are still a complete "
-        "working demo."
+        "<h2 style='margin:8px 0 2px 0;font-size:20px;'>Guided tour</h2>"
+        "<p style='color:#8E867B;font-size:12.5px;margin:0 0 16px 0;'>"
+        "Four steps from zero to a running query — the first two work "
+        "with no model, API key, or Ollama required."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -86,23 +107,23 @@ def render() -> None:
     schema = st.session_state.get("schema", {})
 
     # ---- Step 1 ---------------------------------------------------------
-    st.markdown("### 1. Load the demo dataset")
-    st.markdown(
-        "The Studio and the LLM tab both need a connection.  The "
-        "bundled demo dataset is 3 000 synthetic B2B orders from "
-        "2023–2025.  Click below to load it; the same connection is "
-        "shared across tabs."
+    _step_card(
+        1,
+        "Load the demo dataset",
+        "3 000 synthetic B2B orders (2023–2025). One click — the connection "
+        "is shared across all tabs so you only need to do this once.",
+        done=conn_loaded,
     )
     if conn_loaded:
         st.button(
-            "Demo dataset loaded ✓",
+            "✓ Demo dataset loaded",
             disabled=True,
             key="wf_load_demo",
             width="stretch",
         )
         st.caption(
-            f"Connected to **{DEMO_NAME}** "
-            f"({len(schema)} column{'s' if len(schema) != 1 else ''})."
+            f"Connected to **{DEMO_NAME}** — "
+            f"{len(schema)} column{'s' if len(schema) != 1 else ''}."
         )
     else:
         if st.button(
@@ -118,19 +139,17 @@ def render() -> None:
             else:
                 st.rerun()
 
-    st.markdown("---")
-
     # ---- Step 2 ---------------------------------------------------------
-    st.markdown("### 2. Try a model-free example")
-    st.markdown(
-        "The Studio's ask bar uses the offline heuristic for "
-        "unambiguous phrasings.  Click below to seed the ask bar with "
-        f"“{_STEP2_QUESTION}” and switch to the Studio tab.  Press "
-        "**Ask**, inspect the SQL preview, then press **Run query**.  "
-        "This does not require Ollama or an API key."
+    _step_card(
+        2,
+        "Try a model-free example",
+        f'Prefills the Studio\'s ask bar with &ldquo;<em>{_STEP2_QUESTION}</em>&rdquo;. '
+        "Press <strong>Ask</strong>, inspect the SQL preview, then "
+        "<strong>▶ Run query</strong>. No Ollama or API key needed.",
+        done=False,
     )
     if st.button(
-        f"Open Studio with “{_STEP2_QUESTION}”",
+        f'Open Studio → "{_STEP2_QUESTION}"',
         disabled=not conn_loaded,
         key="wf_step2",
         width="stretch",
@@ -140,18 +159,18 @@ def render() -> None:
         st.session_state["main_tabs"] = TAB_STUDIO
         st.rerun()
 
-    st.markdown("---")
-
     # ---- Step 3 ---------------------------------------------------------
-    st.markdown("### 3. Optional: compare with an LLM")
-    st.markdown(
-        "If a model is connected, run the same kind of question through "
-        "the LLM tab and compare it with the heuristic.  If the LLM is "
-        "offline, the tab still shows the heuristic result and explains "
-        "what to connect before pressing **Run comparison**."
+    _step_card(
+        3,
+        "Compare with an LLM",
+        f'Opens the LLM tab with &ldquo;<em>{_STEP3_QUESTION}</em>&rdquo; prefilled. '
+        "Run the comparison to see heuristic vs model side-by-side. "
+        "If no model is connected the heuristic column still works.",
+        done=False,
+        optional=True,
     )
     if st.button(
-        f"Open LLM tab with “{_STEP3_QUESTION}”",
+        f'Open LLM tab → "{_STEP3_QUESTION}"',
         disabled=not conn_loaded,
         key="wf_step3",
         width="stretch",
@@ -160,25 +179,19 @@ def render() -> None:
         st.session_state["main_tabs"] = TAB_LLM
         st.rerun()
 
-    st.markdown("---")
-
     # ---- Step 4 ---------------------------------------------------------
-    st.markdown("### 4. Hand the LLM plan back to the Studio")
-    st.markdown(
-        "On the LLM tab, run the comparison and then click **Use LLM "
-        "plan** (or **Use heuristic plan** — try both).  The chosen "
-        "QueryModel is copied into the Studio's session state and the "
-        "tab switches back to Studio with the SQL preview already "
-        "populated.  Press **▶ Run query** to execute."
+    _step_card(
+        4,
+        "Hand the plan back to Studio",
+        "On the LLM tab, press <strong>Use LLM plan</strong> or "
+        "<strong>Use heuristic plan</strong>. The chosen plan is copied "
+        "into the Studio and the tab switches back automatically. "
+        "Press <strong>▶ Run query</strong> to execute.",
+        done=False,
+        optional=True,
     )
     st.caption(
-        "Nothing happens on this step until you visit the LLM tab "
-        "yourself — there is no button here on purpose."
+        "This step has no button here — visit the LLM tab and use "
+        "one of the handoff buttons there."
     )
 
-    st.markdown("---")
-    st.caption(
-        "Tip: leaving this tab is fine.  The session state is shared "
-        "— if you already have a connection loaded, every step is one "
-        "click."
-    )
