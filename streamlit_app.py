@@ -64,13 +64,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Default to Studio on first visit (and after any session reset).
+# Default to Workflow on first visit — it's the guided entry point.
 if "main_tabs" not in st.session_state:
-    st.session_state["main_tabs"] = TAB_STUDIO
+    st.session_state["main_tabs"] = TAB_WORKFLOW
 
-# Visible order: Studio, LLM, Workflow.
-tab_studio, tab_llm, tab_workflow = st.tabs(
-    [TAB_STUDIO, TAB_LLM, TAB_WORKFLOW]
+# Visible order: Workflow, Studio, LLM SQL Assistant.
+tab_workflow, tab_studio, tab_llm = st.tabs(
+    [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM]
 )
 
 # Body order: Studio (1st), Workflow (2nd — writes prefill keys),

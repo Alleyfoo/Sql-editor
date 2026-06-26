@@ -522,26 +522,27 @@ def test_diff_renders_when_both_sides_have_models(monkeypatch, demo):
 
 
 def test_default_tab_is_studio():
-    """A fresh session must default to the Studio tab.
+    """A fresh session must default to the Workflow tab.
 
-    The entry script sets ``st.session_state["main_tabs"] = TAB_STUDIO``
+    The entry script sets ``st.session_state["main_tabs"] = TAB_WORKFLOW``
     when the key is missing.  AppTest starts with a clean session, so
     the default-tab test exercises that path.
     """
     from streamlit.testing.v1 import AppTest
-    from src.streamlit_app import TAB_STUDIO
+    from src.streamlit_app import TAB_WORKFLOW
 
     at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
     assert not at.exception, f"entry script raised: {at.exception}"
-    assert at.session_state.filtered_state.get("main_tabs") == TAB_STUDIO
+    assert at.session_state.filtered_state.get("main_tabs") == TAB_WORKFLOW
 
 
 def test_tabs_render_in_visible_order():
     """The three top-level tabs must appear in left-to-right order.
 
-    Visible order is Studio, LLM, Workflow — the body execution order
-    is decoupled (Studio → Workflow → LLM) so the prefill trick works,
-    but the ``st.tabs`` widget arg order is what the user sees.
+    Visible order is Workflow, Studio, LLM SQL Assistant — the body
+    execution order is decoupled (Studio → Workflow → LLM) so the
+    prefill trick works, but the ``st.tabs`` widget arg order is what
+    the user sees.
 
     Note: AppTest's ``.tabs`` property returns *every* ``st.tabs``
     widget on the page, including the Studio's inner Schema/Compose/
@@ -556,8 +557,8 @@ def test_tabs_render_in_visible_order():
     # The top-level tabs widget is the first one rendered.  Inner
     # Studio tabs (Schema / Compose / History) come after.
     top_level = [t.label for t in at.tabs[:3]]
-    assert top_level == [TAB_STUDIO, TAB_LLM, TAB_WORKFLOW], (
-        f"visible tab order should be Studio → LLM → Workflow; "
+    assert top_level == [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM], (
+        f"visible tab order should be Workflow → Studio → LLM; "
         f"saw {top_level!r}"
     )
 
