@@ -23,7 +23,10 @@ Architecture
   ``st.session_state.model`` / ``st.session_state.last_sql``, also
   writes ``nl_prefill`` (with the LLM's ``model.reply`` summary) so
   the Studio's ask bar is pre-populated, and switches to the Studio
-  tab by writing ``st.session_state["main_tabs"] = TAB_STUDIO``.
+  tab by writing ``st.session_state["_pending_main_tab"] = TAB_STUDIO``
+  (the entry script applies that pending flag to the bound ``main_tabs``
+  widget key before the ``st.tabs`` widget re-renders — it can't be
+  written directly after the widget is instantiated).
 """
 
 from __future__ import annotations
@@ -682,8 +685,11 @@ def _handoff(model: QueryModel) -> None:
     - ``nl_prefill``: the LLM's plain-English ``model.reply`` summary
       (or a generic fallback) so the Studio's ask bar is
       pre-populated.  ``ask.render`` reads this on its next render.
-    - ``main_tabs``: set to :data:`TAB_STUDIO` so the bound ``st.tabs``
-      widget swaps to the Studio panel on the next rerun.
+    - ``_pending_main_tab``: set to :data:`TAB_STUDIO`.  The entry
+      script applies this pending flag to the bound ``main_tabs``
+      ``st.tabs`` widget key before the widget re-renders, so the
+      Studio panel becomes active on the next rerun.  (The widget key
+      itself can't be written here — the widget is already instantiated.)
     """
     ss = st.session_state
     ss.model = copy.deepcopy(model)
@@ -697,7 +703,10 @@ def _handoff(model: QueryModel) -> None:
     nl_text = (getattr(model, "reply", "") or "").strip() or "Query from LLM tab"
     ss["nl_prefill"] = nl_text
     ss["nl_auto_submit"] = False
-    ss["main_tabs"] = TAB_STUDIO
+    # Don't write the widget key directly — it can't be modified after the
+    # st.tabs widget is instantiated. Write a pending flag that the entry
+    # script applies before the widget re-renders. See streamlit_app.py.
+    ss["_pending_main_tab"] = TAB_STUDIO
     # Writing the bound tabs key only takes effect on the next widget
     # re-instantiation.  The button click itself triggers a rerun; this
     # explicit rerun ensures the tab swap is visible immediately.

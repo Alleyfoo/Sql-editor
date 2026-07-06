@@ -570,7 +570,10 @@ def test_handoff_writes_main_tabs_and_nl_prefill(demo):
     - ``model``  — the deep-copied QueryModel (Studio's last_sql depends on it)
     - ``last_sql`` — the generated SQL (Studio's preview reads this)
     - ``nl_prefill`` — the LLM's plain-English reply (Studio's ask bar)
-    - ``main_tabs`` — the bound tabs key, set to TAB_STUDIO
+    - ``_pending_main_tab`` — a pending flag set to TAB_STUDIO.  The entry
+      script (``streamlit_app.py``) applies this to the bound ``main_tabs``
+      widget key before the ``st.tabs`` widget re-renders; ``_handoff`` can't
+      write ``main_tabs`` itself because the widget is already instantiated.
 
     Implementation note: we patch ``st.rerun`` to a no-op inside the
     script body and restore it at the end.  Without the patch, AppTest
@@ -618,9 +621,9 @@ def test_handoff_writes_main_tabs_and_nl_prefill(demo):
     )
     at = AppTest.from_string(script).run()
     ss = at.session_state.filtered_state
-    assert ss.get("main_tabs") == TAB_STUDIO, (
-        f"_handoff should set main_tabs to {TAB_STUDIO!r}; "
-        f"got {ss.get('main_tabs')!r}"
+    assert ss.get("_pending_main_tab") == TAB_STUDIO, (
+        f"_handoff should set _pending_main_tab to {TAB_STUDIO!r}; "
+        f"got {ss.get('_pending_main_tab')!r}"
     )
     assert ss.get("nl_prefill") == "Sum revenue grouped by region.", (
         f"nl_prefill should be the LLM's reply; "
@@ -701,9 +704,12 @@ def test_workflow_step3_writes_chip_prefill(demo):
     """Clicking the Workflow Step 3 button must pre-fill the LLM tab.
 
     Step 3 of the guided tour writes
-    ``_llm_showcase_chip_prefill`` and ``main_tabs = TAB_LLM`` so the
-    LLM tab's text area picks up the seed question on its next
-    render.  We assert both keys after the click.
+    ``_llm_showcase_chip_prefill`` and ``_pending_main_tab = TAB_LLM`` so
+    the LLM tab's text area picks up the seed question on its next render
+    and the entry script switches to the LLM tab.  (The button writes a
+    pending flag, not the ``main_tabs`` widget key, because the widget is
+    already instantiated by the time the button runs.)  We assert both
+    keys after the click.
     """
     from streamlit.testing.v1 import AppTest
     from src.streamlit_app import TAB_LLM
@@ -732,8 +738,9 @@ def test_workflow_step3_writes_chip_prefill(demo):
     step3.click().run()
 
     ss = at.session_state.filtered_state
-    assert ss.get("main_tabs") == TAB_LLM, (
-        f"Step 3 must switch to {TAB_LLM!r}; got {ss.get('main_tabs')!r}"
+    assert ss.get("_pending_main_tab") == TAB_LLM, (
+        f"Step 3 must set _pending_main_tab to {TAB_LLM!r}; "
+        f"got {ss.get('_pending_main_tab')!r}"
     )
     assert ss.get("_llm_showcase_chip_prefill") == "monthly revenue trend 2024", (
         f"Step 3 must seed the LLM text area; got "

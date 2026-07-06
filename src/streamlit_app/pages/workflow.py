@@ -18,7 +18,7 @@ Steps
    prefill pattern in :mod:`src.streamlit_app.pages.llm_assistant`.
 4. Hand the LLM plan back to the Studio.  Static instruction — the
    user clicks **Use LLM plan** on the LLM tab, which writes
-   ``main_tabs = TAB_STUDIO`` and pre-fills the ask bar with the
+   ``_pending_main_tab = TAB_STUDIO`` and pre-fills the ask bar with the
    LLM's ``model.reply``.
 
 State sharing
@@ -26,7 +26,11 @@ State sharing
 All cross-tab state lives in ``st.session_state`` — see
 :mod:`src.streamlit_app` for the tab-label constants.  The
 ``st.tabs`` widget in ``streamlit_app.py`` is bound to the
-``main_tabs`` key; writing it switches the active tab.
+``main_tabs`` key (with ``on_change="rerun"``).  Switching tabs from a
+button can't write that widget key directly — the widget is already
+instantiated by the time the button runs — so the buttons write a
+``_pending_main_tab`` flag that the entry script applies to ``main_tabs``
+before the widget re-renders.
 """
 
 from __future__ import annotations
@@ -156,7 +160,10 @@ def render() -> None:
     ):
         st.session_state["nl_prefill"] = _STEP2_QUESTION
         st.session_state["nl_auto_submit"] = False
-        st.session_state["main_tabs"] = TAB_STUDIO
+        # Don't write the widget key directly — it can't be modified after
+        # the st.tabs widget is instantiated. Write a pending flag that the
+        # entry script applies before the widget re-renders. See streamlit_app.py.
+        st.session_state["_pending_main_tab"] = TAB_STUDIO
         st.rerun()
 
     # ---- Step 3 ---------------------------------------------------------
@@ -176,7 +183,8 @@ def render() -> None:
         width="stretch",
     ):
         st.session_state["_llm_showcase_chip_prefill"] = _STEP3_QUESTION
-        st.session_state["main_tabs"] = TAB_LLM
+        # Pending flag, not the widget key — see streamlit_app.py.
+        st.session_state["_pending_main_tab"] = TAB_LLM
         st.rerun()
 
     # ---- Step 4 ---------------------------------------------------------

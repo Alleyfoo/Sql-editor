@@ -65,15 +65,32 @@ st.set_page_config(
 )
 
 # Default to Workflow on first visit — it's the guided entry point.
-if "main_tabs" not in st.session_state:
+_VALID_TABS = (TAB_WORKFLOW, TAB_STUDIO, TAB_LLM)
+
+# Apply a pending tab-switch request, then validate.  The tab-switch
+# buttons (Workflow's "Open Studio/LLM tab", LLM's "Use … plan") run
+# inside the ``with tab_*:`` blocks BELOW — i.e. AFTER this ``st.tabs``
+# widget is instantiated.  Streamlit forbids modifying a widget's own
+# session_state key after the widget is created, so those buttons can't
+# write ``main_tabs`` directly.  They write a separate ``_pending_main_tab``
+# flag instead, and we apply it here, before the widget renders (which is
+# allowed).  A garbage value (e.g. a stale key from an old deploy) is
+# reset to Workflow so ``st.tabs`` never sees an invalid label.
+_pending_tab = st.session_state.pop("_pending_main_tab", None)
+if _pending_tab in _VALID_TABS:
+    st.session_state["main_tabs"] = _pending_tab
+if st.session_state.get("main_tabs") not in _VALID_TABS:
     st.session_state["main_tabs"] = TAB_WORKFLOW
 
 # Visible order: Workflow, Studio, LLM SQL Assistant.
-# key="main_tabs" binds the active tab to session state — Workflow's
-# buttons write this key to switch tabs programmatically.
+# key="main_tabs" + on_change="rerun" binds the active tab to session state.
+# on_change="rerun" is REQUIRED: without it, st.tabs defaults to
+# on_change="ignore", does not track state, and ignores writes to
+# session_state["main_tabs"] — so the buttons above can't switch tabs.
 tab_workflow, tab_studio, tab_llm = st.tabs(
     [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM],
     key="main_tabs",
+    on_change="rerun",
 )
 
 # Body order: Studio (1st), Workflow (2nd — writes prefill keys),
