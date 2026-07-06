@@ -521,45 +521,46 @@ def test_diff_renders_when_both_sides_have_models(monkeypatch, demo):
 # ---------------------------------------------------------------------------
 
 
-def test_default_tab_is_studio():
-    """A fresh session must default to the Workflow tab.
+def test_default_view_is_tour():
+    """A fresh session must land on the Tour view (the presentation front door).
 
-    The entry script sets ``st.session_state["main_tabs"] = TAB_WORKFLOW``
-    when the key is missing.  AppTest starts with a clean session, so
-    the default-tab test exercises that path.
+    The entry script defaults ``st.session_state["view"]`` to ``"tour"`` when
+    the key is missing.  AppTest starts with a clean session, so this exercises
+    that path.  The Tour renders (no top-level ``st.tabs``); the workshop tabs
+    only exist when ``view == "workshop"``.
     """
     from streamlit.testing.v1 import AppTest
-    from src.streamlit_app import TAB_WORKFLOW
 
     at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
     assert not at.exception, f"entry script raised: {at.exception}"
-    assert at.session_state.filtered_state.get("main_tabs") == TAB_WORKFLOW
+    assert at.session_state.filtered_state.get("view") == "tour", (
+        f"fresh session should land on the tour; got "
+        f"{at.session_state.filtered_state.get('view')!r}"
+    )
 
 
-def test_tabs_render_in_visible_order():
-    """The three top-level tabs must appear in left-to-right order.
+def test_workshop_tabs_render_in_order():
+    """The workshop's two top-level tabs must appear in left-to-right order.
 
-    Visible order is Workflow, Studio, LLM SQL Assistant — the body
-    execution order is decoupled (Studio → Workflow → LLM) so the
-    prefill trick works, but the ``st.tabs`` widget arg order is what
-    the user sees.
-
-    Note: AppTest's ``.tabs`` property returns *every* ``st.tabs``
-    widget on the page, including the Studio's inner Schema/Compose/
-    History tabs.  We slice the first three (the top-level widget)
-    and assert their labels match.
+    The standalone Workflow tab was superseded by the Tour and is no longer
+    dispatched; the workshop is Studio + LLM SQL Assistant.  We pre-seed
+    ``view="workshop"`` on the AppTest before running the entry script (using
+    ``from_file`` + session_state assignment, not ``import streamlit_app`` in
+    a from_string script — the latter caches the module in ``sys.modules`` so
+    a second test doing the same import would get a no-op body and render
+    nothing).  Then assert the first two tabs (the top-level widget — inner
+    Studio tabs come after).
     """
     from streamlit.testing.v1 import AppTest
-    from src.streamlit_app import TAB_LLM, TAB_STUDIO, TAB_WORKFLOW
+    from src.streamlit_app import TAB_LLM, TAB_STUDIO
 
-    at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
-    assert not at.exception, f"entry script raised: {at.exception}"
-    # The top-level tabs widget is the first one rendered.  Inner
-    # Studio tabs (Schema / Compose / History) come after.
-    top_level = [t.label for t in at.tabs[:3]]
-    assert top_level == [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM], (
-        f"visible tab order should be Workflow → Studio → LLM; "
-        f"saw {top_level!r}"
+    at = AppTest.from_file("streamlit_app.py", default_timeout=60)
+    at.session_state["view"] = "workshop"
+    at.run()
+    assert not at.exception, f"workshop render raised: {at.exception}"
+    top_level = [t.label for t in at.tabs[:2]]
+    assert top_level == [TAB_STUDIO, TAB_LLM], (
+        f"workshop tab order should be Studio → LLM; saw {top_level!r}"
     )
 
 
@@ -748,43 +749,43 @@ def test_workflow_step3_writes_chip_prefill(demo):
     )
 
 
-def test_studio_ask_picks_up_workflow_prefill(demo):
-    """End-to-end: Workflow Step 2 pre-fill must reach the Studio ask bar.
+def test_tour_escape_hatch_prefills_studio(demo):
+    """End-to-end: the Tour's "Open the workshop" escape hatch pre-fills Studio.
 
-    This is the most important integration test.  It renders the full
-    three-tab app, clicks Workflow Step 2, then asserts:
+    This is the cross-view integration test (it replaced the old Workflow
+    Step 2 → Studio prefill test, since the Tour supersedes the Workflow
+    tab).  It renders the full app (which lands on the Tour), clicks the
+    tour's escape-hatch button, then asserts:
+    - ``view`` switched to "workshop"
     - ``main_tabs`` switched to "Studio"
-    - The Studio's ask-bar widget (``nl_text_input``) is populated
-      with the seed question
+    - The Studio's ask-bar widget (``nl_text_input``) is populated with the
+      tour's question
 
-    Proves the cross-tab prefill works end-to-end.
-
-    Note: we don't assert on ``nl_prefill``'s presence/absence — that
-    key is *consumed* by ``ask.render()`` via ``st.session_state.pop``
-    which still leaves the key in session_state with an empty-string
-    value.  The visible end-state is the ``nl_text_input`` widget value.
+    Note: we don't assert on ``nl_prefill``'s presence — that key is
+    *consumed* by ``ask.render()`` via ``st.session_state.pop`` which leaves
+    an empty-string value.  The visible end-state is ``nl_text_input``.
     """
     from streamlit.testing.v1 import AppTest
 
-    # Render the full app so all session_state is initialized.
+    # Render the full app so all session_state is initialized (lands on tour).
     at = AppTest.from_file("streamlit_app.py", default_timeout=60).run()
     assert not at.exception, f"first render raised: {at.exception}"
 
-    # Click the Workflow Step 2 button.  The key is stable: ``wf_step2``.
-    step2 = next(b for b in at.button if b.key == "wf_step2")
-    step2.click().run()
+    esc = next(b for b in at.button if b.key == "tour_open_workshop")
+    esc.click().run()
 
     assert not at.exception, f"post-click render raised: {at.exception}"
 
     ss = at.session_state.filtered_state
-    assert ss.get("main_tabs") == "Studio", (
-        f"Step 2 must switch to Studio; got {ss.get('main_tabs')!r}"
+    assert ss.get("view") == "workshop", (
+        f"escape hatch must switch to the workshop; got {ss.get('view')!r}"
     )
-    # The ask bar's text_input widget has key="nl_text_input"; the
-    # prefill should be sitting in its session_state slot.
+    assert ss.get("main_tabs") == "Studio", (
+        f"escape hatch must switch to Studio; got {ss.get('main_tabs')!r}"
+    )
     assert ss.get("nl_text_input") == "sum revenue by region", (
-        f"Studio's ask bar should be pre-populated with the seed "
-        f"question; got {ss.get('nl_text_input')!r}"
+        f"Studio's ask bar should be pre-populated with the tour question; "
+        f"got {ss.get('nl_text_input')!r}"
     )
 
 
@@ -842,32 +843,32 @@ def test_workflow_load_demo_button_disabled_when_loaded(demo):
 def test_invalid_main_tabs_value_falls_back(demo):
     """A garbage ``main_tabs`` value must not crash the entry script.
 
-    Streamlit's ``st.tabs`` silently falls back to the first tab when
-    the bound key's value doesn't match any of the labels.  We assert
-    the entry script renders cleanly and at least one of the three
-    tabs is present.
+    We pre-seed ``view="workshop"`` (so the tab block renders) and a garbage
+    ``main_tabs`` value.  Streamlit's ``st.tabs`` silently falls back to the
+    first tab when the bound key doesn't match a label; the entry script also
+    resets a garbage/stale value to ``TAB_STUDIO`` before the widget renders.
+    We assert the entry renders cleanly, the workshop tabs are present, and
+    ``main_tabs`` was reset to Studio.  Uses ``from_file`` + session_state
+    assignment (see ``test_workshop_tabs_render_in_order`` for why not
+    ``import streamlit_app``).
     """
     from streamlit.testing.v1 import AppTest
 
-    # Pre-seed session_state via a tiny wrapper script — AppTest
-    # doesn't let us write to session_state from outside, but we can
-    # pre-populate it inside the test script.
-    script = textwrap.dedent(
-        f"""
-        import streamlit as st
-        st.set_page_config = lambda *a, **kw: None
-        # Garbage value — Streamlit should silently fall back to tab 0.
-        st.session_state["main_tabs"] = "BogusTab"
-        import streamlit_app
-        """
-    )
-    at = AppTest.from_string(script).run()
+    at = AppTest.from_file("streamlit_app.py", default_timeout=60)
+    at.session_state["view"] = "workshop"
+    at.session_state["main_tabs"] = "BogusTab"
+    at.run()
     assert not at.exception, (
         f"garbage main_tabs should not crash: {at.exception}"
     )
-    # All three tab labels should still be present in the element tree.
     labels = [t.label for t in at.tabs]
-    assert "Studio" in labels and "LLM SQL Assistant" in labels and "Workflow" in labels
+    assert "Studio" in labels and "LLM SQL Assistant" in labels, (
+        f"workshop tabs should be present; saw {labels!r}"
+    )
+    assert at.session_state.filtered_state.get("main_tabs") == "Studio", (
+        f"garbage main_tabs should fall back to Studio; got "
+        f"{at.session_state.filtered_state.get('main_tabs')!r}"
+    )
 
 
 def test_entry_script_self_fixes_sys_path():
@@ -907,7 +908,7 @@ def test_entry_script_self_fixes_sys_path():
         os.chdir({str(Path.home())!r})
         import streamlit as st
         st.set_page_config = lambda *a, **kw: None
-        with open({str(script_path)!r}) as f:
+        with open({str(script_path)!r}, encoding="utf-8") as f:
             src = f.read()
         compiled = compile(src, {str(script_path)!r}, "exec")
         try:
@@ -924,6 +925,7 @@ def test_entry_script_self_fixes_sys_path():
         [sys.executable, "-c", child_code],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert "IMPORT_OK" in result.stdout, (

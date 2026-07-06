@@ -1,27 +1,28 @@
-"""Query Studio — single-script app with three top-of-page tabs.
+"""Query Studio — single-script app with two views: Tour and Workshop.
 
-Replaces the previous ``st.navigation`` setup.  All three panels
-(Studio, LLM SQL Assistant, Workflow) live in the same Streamlit
-script and share ``st.session_state``.  Cross-tab handoff is a
-``st.session_state["main_tabs"]`` write (the bound key on the
-``st.tabs`` widget) — no ``st.switch_page`` is needed.
+The **Tour** (``pages/tour.py``) is the default landing: a scroll-driven
+presentation that tells the core thesis as five live beats (ask → safe plan →
+approve → run → auto-insight). The **Workshop** is the full three-panel
+experience — the Studio (visual composer + SQL editor + results) and the LLM
+SQL Assistant — reachable behind an "Open the workshop" escape hatch on the
+tour, and returned to via a "← Back to tour" button.
 
-Visible tab order (left → right):
-  Workflow · Studio · LLM SQL Assistant
+Which view renders is driven by ``st.session_state["view"]`` (default
+``"tour"``). View switches use a ``_pending_view`` pending flag, mirroring the
+``_pending_main_tab`` mechanism used for tab switches inside the workshop:
+buttons that run after a widget is instantiated can't write the widget's own
+key, so they write a pending flag the entry script applies before the next
+render.
 
-Body-execution order:
-  Studio → Workflow → LLM SQL Assistant
+Inside the workshop, the active tab is bound to ``st.session_state["main_tabs"]``
+via ``st.tabs(..., key="main_tabs", on_change="rerun")``. Tab-switch buttons
+(Studio↔LLM handoffs) write ``_pending_main_tab``; the entry script applies it
+before the widget re-renders. The standalone Workflow tab was superseded by the
+Tour and is no longer dispatched (its page module is kept on disk so existing
+tests still pass).
 
-The body order is deliberately **not** the visible order: the
-Workflow tab's buttons write private prefill keys
-(``_llm_showcase_chip_prefill``, ``nl_prefill``), and the LLM tab's
-``render()`` pops those keys *before* instantiating its widgets.  By
-running the LLM tab last in the script, the prefill is visible in
-the same top-to-bottom pass — no extra rerun needed.
-
-Tab labels live in :mod:`src.streamlit_app` as module-level
-constants so the entry script and the page modules can never get
-out of sync.
+Tab labels live in :mod:`src.streamlit_app` as module-level constants so the
+entry script and the page modules can never get out of sync.
 """
 
 from __future__ import annotations
@@ -64,47 +65,54 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Default to Workflow on first visit — it's the guided entry point.
-_VALID_TABS = (TAB_WORKFLOW, TAB_STUDIO, TAB_LLM)
+# ── View selection: Tour (default) or Workshop ──────────────────────────────
+# Pending-flag pattern (see module docstring): view-switch buttons run after
+# widgets are instantiated, so they write ``_pending_view`` and we apply it
+# here, before anything renders.
+_pending_view = st.session_state.pop("_pending_view", None)
+if _pending_view in ("tour", "workshop"):
+    st.session_state["view"] = _pending_view
+if st.session_state.get("view") not in ("tour", "workshop"):
+    st.session_state["view"] = "tour"
 
-# Apply a pending tab-switch request, then validate.  The tab-switch
-# buttons (Workflow's "Open Studio/LLM tab", LLM's "Use … plan") run
-# inside the ``with tab_*:`` blocks BELOW — i.e. AFTER this ``st.tabs``
-# widget is instantiated.  Streamlit forbids modifying a widget's own
-# session_state key after the widget is created, so those buttons can't
-# write ``main_tabs`` directly.  They write a separate ``_pending_main_tab``
-# flag instead, and we apply it here, before the widget renders (which is
-# allowed).  A garbage value (e.g. a stale key from an old deploy) is
-# reset to Workflow so ``st.tabs`` never sees an invalid label.
-_pending_tab = st.session_state.pop("_pending_main_tab", None)
-if _pending_tab in _VALID_TABS:
-    st.session_state["main_tabs"] = _pending_tab
-if st.session_state.get("main_tabs") not in _VALID_TABS:
-    st.session_state["main_tabs"] = TAB_WORKFLOW
+if st.session_state["view"] == "tour":
+    from src.streamlit_app.pages import tour
+    tour.render()
+else:
+    # ── Workshop: Studio + LLM SQL Assistant tabs ─────────────────────────
+    _VALID_TABS = (TAB_STUDIO, TAB_LLM)
 
-# Visible order: Workflow, Studio, LLM SQL Assistant.
-# key="main_tabs" + on_change="rerun" binds the active tab to session state.
-# on_change="rerun" is REQUIRED: without it, st.tabs defaults to
-# on_change="ignore", does not track state, and ignores writes to
-# session_state["main_tabs"] — so the buttons above can't switch tabs.
-tab_workflow, tab_studio, tab_llm = st.tabs(
-    [TAB_WORKFLOW, TAB_STUDIO, TAB_LLM],
-    key="main_tabs",
-    on_change="rerun",
-)
+    # Apply a pending tab-switch request, then validate.  Tab-switch buttons
+    # (the tour's escape hatch, the LLM tab's "Use … plan") write
+    # ``_pending_main_tab`` because they can't write the ``main_tabs`` widget
+    # key after it is instantiated.  A garbage/stale value resets to Studio.
+    _pending_tab = st.session_state.pop("_pending_main_tab", None)
+    if _pending_tab in _VALID_TABS:
+        st.session_state["main_tabs"] = _pending_tab
+    if st.session_state.get("main_tabs") not in _VALID_TABS:
+        st.session_state["main_tabs"] = TAB_STUDIO
 
-# Body order: Studio (1st), Workflow (2nd — writes prefill keys),
-# LLM (3rd — pops prefill keys).  Labels are decoupled from the
-# order of the ``with`` blocks; only the script order matters for
-# the prefill trick to work.
-with tab_studio:
-    from src.streamlit_app.pages import studio
-    studio.render()
+    if st.button("← Back to tour", key="wk_back_to_tour"):
+        st.session_state["_pending_view"] = "tour"
+        st.rerun()
 
-with tab_workflow:
-    from src.streamlit_app.pages import workflow
-    workflow.render()
+    # key="main_tabs" + on_change="rerun" binds the active tab to session
+    # state.  on_change="rerun" is REQUIRED: without it, st.tabs defaults to
+    # on_change="ignore" and ignores writes to session_state["main_tabs"].
+    tab_studio, tab_llm = st.tabs(
+        [TAB_STUDIO, TAB_LLM],
+        key="main_tabs",
+        on_change="rerun",
+    )
 
-with tab_llm:
-    from src.streamlit_app.pages import llm_assistant
-    llm_assistant.render()
+    # Body order: Studio first, LLM second.  Prefill keys (nl_prefill,
+    # _llm_showcase_chip_prefill) are written by the tour before the rerun
+    # into the workshop, so they are already in session_state and order does
+    # not matter for the prefill trick.
+    with tab_studio:
+        from src.streamlit_app.pages import studio
+        studio.render()
+
+    with tab_llm:
+        from src.streamlit_app.pages import llm_assistant
+        llm_assistant.render()

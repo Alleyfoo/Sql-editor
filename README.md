@@ -9,8 +9,11 @@ an external service; cloud providers are optional for shareable datasets.
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange)
 
 > **Try it live (no install):** <https://sql-editor-lehuxzh2q7mnmnm49an5hm.streamlit.app/>
-> The hosted demo ships with the bundled sales dataset and the full UI. The
-> model-free path (heuristic parsing, quick queries, composer) works instantly.
+> The demo opens on a guided **Tour** — a scroll-driven walkthrough of the core
+> idea (ask → safe plan → approve → run → auto-insight), each step live against
+> the bundled sales dataset. Click **Open the full Studio / LLM tools →** at the
+> bottom for the full composer, SQL editor, and LLM SQL Assistant.
+> The model-free path (heuristic parsing, quick queries, composer) works instantly.
 > To use the **LLM features on the hosted demo**, bring a free cloud key — see
 > [Try it with a real LLM](#try-it-with-a-real-llm--no-install) below. No Ollama
 > install or server required.
