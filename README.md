@@ -8,6 +8,13 @@ an external service; cloud providers are optional for shareable datasets.
 
 ![status: alpha](https://img.shields.io/badge/status-alpha-orange)
 
+> **Try it live (no install):** <https://sql-editor-lehuxzh2q7mnmnm49an5hm.streamlit.app/>
+> The hosted demo ships with the bundled sales dataset and the full UI. The
+> model-free path (heuristic parsing, quick queries, composer) works instantly.
+> To use the **LLM features on the hosted demo**, bring a free cloud key — see
+> [Try it with a real LLM](#try-it-with-a-real-llm--no-install) below. No Ollama
+> install or server required.
+
 ---
 
 ## What it does
@@ -27,6 +34,30 @@ executed after you've seen it.
 ---
 
 ## Quick start
+
+### Try it with a real LLM — no install
+
+The hosted demo and any local run can use a real LLM **without installing
+Ollama**, via a free cloud API key. Bring-your-own-key keeps your data in your
+hands — the key is never stored or sent anywhere except the provider you pick.
+
+1. Open the demo: <https://sql-editor-lehuxzh2q7mnmnm49an5hm.streamlit.app/>
+2. Click **Load demo dataset**.
+3. Open the **⚙ LLM model** popover in the top bar and pick a cloud provider:
+   - **Groq (cloud)** — free key at <https://console.groq.com>.
+     Recommended model: `llama-3.1-8b-instant` (fast) or
+     `llama-3.3-70b-versatile` (higher quality).
+   - **Gemini (cloud)** — free key at <https://aistudio.google.com/apikey>.
+     Recommended model: `gemini-2.5-flash`.
+4. Paste your key into the API key field and choose the model.
+5. On the **LLM SQL Assistant** tab, ask a question (e.g.
+   `monthly revenue trend 2024`) and compare the heuristic plan against the
+   LLM plan, or run **Ask + Analyze** for a narrative insight report.
+
+The key lives only in your browser session for that tab. Nothing is written to
+disk, the repo, or the deploy. **Data note:** with a cloud provider the prompt
+and a trimmed schema snapshot are sent to that provider — use it only with data
+you're allowed to share. For fully offline use, run locally with Ollama (below).
 
 ### No Ollama or API key? Start here.
 
@@ -102,18 +133,30 @@ Edit `config.yaml`:
 
 ```yaml
 llm:
-  model: qwen2.5-coder:7b   # must match what you pulled
-  host: http://localhost:11434
+  provider: ollama            # ollama | ollama_remote | groq | gemini
+  model: qwen2.5-coder:7b      # must match what you pulled (Ollama) or the provider's catalog
+  host: http://localhost:11434 # Ollama host (ollama / ollama_remote only)
   timeout: 120
+  # api_key: gsk_...           # Groq / Gemini only — prefer env var or ⚙ popover
 ```
+
+For a cloud provider, set `provider: groq` (or `gemini`) and supply the key via
+the **⚙ LLM model** popover, an environment variable, or Streamlit secrets —
+not in a committed `config.yaml`.
 
 Or set environment variables (these override `config.yaml`):
 
-| Variable         | Default                  |
-| ---------------- | ------------------------ |
-| `OLLAMA_HOST`    | `http://localhost:11434` |
-| `OLLAMA_MODEL`   | `gemma3`                 |
-| `OLLAMA_TIMEOUT` | `60` (seconds)           |
+| Variable         | Default                  | Used by                |
+| ---------------- | ------------------------ | ---------------------- |
+| `OLLAMA_HOST`    | `http://localhost:11434` | ollama, ollama_remote  |
+| `OLLAMA_MODEL`   | `gemma3`                | ollama, ollama_remote  |
+| `OLLAMA_TIMEOUT` | `60` (seconds)          | ollama, ollama_remote  |
+| `GROQ_API_KEY`   | _none_                  | groq                   |
+| `LLM_API_KEY`    | _none_                  | groq, gemini (fallback) |
+
+On **Streamlit Community Cloud**, put secrets in `.streamlit/secrets.toml`
+instead of env vars — the app reads `st.secrets["llm"]` (e.g.
+`provider = "groq"`, `api_key = "gsk_..."`, `model = "llama-3.1-8b-instant"`).
 
 ---
 
@@ -142,8 +185,17 @@ and HAVING. The LLM populates it; you can tweak it before running.
 **SQL Preview** — shows the exact SQL that will run. Nothing executes until you
 click **▶ Run query**.
 
-**Model selector** — click **⚙ LLM model** in the top bar to switch between
-local Ollama and remote Ollama, and to choose which pulled model to use.
+**Model selector** — click **⚙ LLM model** in the top bar to switch providers and
+pick a model. Four providers are supported:
+
+- **Local Ollama** — a model running on this machine (default; data stays local).
+- **Remote Ollama** — an Ollama server reachable over the network (`OLLAMA_HOST`).
+- **Groq (cloud)** — bring a free key from <https://console.groq.com>.
+- **Gemini (cloud)** — bring a free key from <https://aistudio.google.com/apikey>.
+
+For the cloud providers, the popover shows an API key field (paste a free key)
+and a model dropdown. The key is held only in the browser session for that tab —
+it is not written to disk, the repo, or the deploy.
 
 ---
 
